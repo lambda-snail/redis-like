@@ -5,7 +5,7 @@ import resp;
 
 void parse_and_print(LambdaSnail::resp::parser const& parser, std::string const& s)
 {
-    auto result = parser.parse(s);
+    auto result = parser.parse_simple(s);
     std::cout << static_cast<int32_t>(result.type) << std::endl;
     std::cout << result.value << std::endl;
 }
