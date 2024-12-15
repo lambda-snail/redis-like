@@ -34,18 +34,21 @@ public:
             {
                 std::cout << std::endl << std::format(
                     "[Connection] Bytes available for reading: {}", length) << std::endl;
+
+                this_->m_data.insert(this_->m_data.begin(), this_->m_buffer.begin(), this_->m_buffer.end());
                 // for (size_t b = 0; b < length; ++b)
                 // {
-                //     if (this_->m_buffer[b] != '\r')
-                //     {
-                //         std::clog << this_->m_buffer[b];
-                //     }
+                //     this_->m_data[b] = this_->m_buffer[b];
+                //     // if (this_->m_buffer[b] != '\r')
+                //     // {
+                //     //     std::clog << this_->m_buffer[b];
+                //     // }
                 // }
 
-                auto it_end = this_->m_buffer.begin();
-                std::ranges::advance(it_end, static_cast<std::iter_difference_t<decltype(this_->m_buffer)>>(length));
-
-                this_->m_data.insert(this_->m_data.end(), this_->m_buffer.begin(), this_->m_buffer.end());
+                // auto it_end = this_->m_buffer.begin();
+                // std::ranges::advance(it_end, static_cast<std::iter_difference_t<decltype(this_->m_buffer)>>(length));
+                //
+                // this_->m_data.insert(this_->m_data.end(), this_->m_buffer.begin(), this_->m_buffer.end());
 
                 // Need to parse http header to find content length and continue reading rest of the data
                 // Or better yet, use library for handling http related stuff
