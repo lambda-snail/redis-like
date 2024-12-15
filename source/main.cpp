@@ -1,3 +1,4 @@
+import networking;
 import resp;
 
 #include <iostream>
@@ -12,18 +13,8 @@ void parse_and_print(LambdaSnail::resp::parser const& parser, std::string const&
 
 int main()
 {
-    LambdaSnail::resp::parser parser;
-
-    parse_and_print(parser, "+Hello World\r\n");
-    parse_and_print(parser, ":12345678\r\n");
-    parse_and_print(parser, ",123478\r\n");
-    parse_and_print(parser, ",123.478\r\n");
-    parse_and_print(parser, ",123.47xyz8\r\n");
-    parse_and_print(parser, "#F\r\n");
-    parse_and_print(parser, "#t\r\n");
-    parse_and_print(parser, "#Xyre\r\n");
-    parse_and_print(parser, "_\r\n");
-    parse_and_print(parser, "_xyq\r\n");
+    runner runner;
+    runner.run(6379);
 
     return 0;
 }

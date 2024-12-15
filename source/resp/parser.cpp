@@ -3,6 +3,7 @@ module;
 #include <cstdint>
 #include <span>
 #include <string>
+#include <vector>
 
 export module resp : iface.parser;
 
@@ -15,7 +16,9 @@ namespace LambdaSnail::resp
         Integer         = ':',
         Boolean         = '#',
         Double          = ',',
-        Null            = '_'
+        Null            = '_',
+        Array           = '*',
+        BulkString      = '$'
     };
 
     struct simple_string_data
@@ -24,11 +27,18 @@ namespace LambdaSnail::resp
         std::string_view value{};
     };
 
+    struct command
+    {
+        std::vector<simple_string_data> value{};
+    };
+
     export class parser
     {
     public:
-         [[nodiscard]] simple_string_data parse_simple(std::string const& message) const;
-         [[nodiscard]] simple_string_data parse_simple(std::string const& message, std::string::const_iterator start) const;
+        [[nodiscard]] command parse(std::string_view const& message) const;
+
+        [[nodiscard]] simple_string_data parse_simple(std::string const& message) const;
+        [[nodiscard]] simple_string_data parse_simple(std::string const& message, std::string::const_iterator start) const;
 
     private:
         [[nodiscard]] simple_string_data validate_integral(simple_string_data const data) const;
@@ -36,6 +46,26 @@ namespace LambdaSnail::resp
         [[nodiscard]] simple_string_data validate_boolean(simple_string_data const data) const;
         [[nodiscard]] simple_string_data validate_null(simple_string_data const data) const;
     };
+}
+
+LambdaSnail::resp::command LambdaSnail::resp::parser::parse(std::string_view const& message) const
+{
+    command command;
+    if(message.empty())
+    {
+        return command;
+    }
+
+    auto cursor = message.begin();
+    switch (*cursor)
+    {
+        case '*':
+            break;
+        case '$':
+            break;
+    }
+
+    return command;
 }
 
 LambdaSnail::resp::simple_string_data LambdaSnail::resp::parser::parse_simple(std::string const& message) const
