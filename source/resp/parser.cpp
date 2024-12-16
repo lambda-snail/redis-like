@@ -34,42 +34,41 @@ namespace LambdaSnail::resp
     export class parser
     {
     public:
-        [[nodiscard]] data_view parse_message(std::string_view const& message) const;
-        [[nodiscard]] data_view parse_message(std::string_view const &message, std::string_view::iterator start, std::string_view::iterator &end) const;
+        [[nodiscard]] data_view parse_message_s(std::string_view const& message) const;
+        [[nodiscard]] data_view parse_message_s(std::string_view const &message, std::string_view::iterator start, std::string_view::iterator &end) const;
 
-        [[nodiscard]] data_view parse_array(std::string_view const &message, std::string_view::iterator start, std::string_view::iterator &end) const;
-        [[nodiscard]] data_view parse_bulk_string(std::string_view const &message, std::string_view::iterator start, std::string_view::iterator &end) const;
+        [[nodiscard]] data_view parse_array_s(std::string_view const &message, std::string_view::iterator start, std::string_view::iterator &end) const;
+        [[nodiscard]] data_view parse_bulk_string_s(std::string_view const &message, std::string_view::iterator start, std::string_view::iterator &end) const;
 
+    private:
+        [[nodiscard]] data_view parse_simple(std::string const& message) const;
+        [[nodiscard]] data_view parse_simple(std::string const& message, std::string::const_iterator start) const;
 
-    //     [[nodiscard]] data_view parse_simple(std::string const& message) const;
-    //     [[nodiscard]] data_view parse_simple(std::string const& message, std::string::const_iterator start) const;
-    //
-    // private:
-    //     [[nodiscard]] data_view validate_integral(data_view const data) const;
-    //     [[nodiscard]] data_view validate_double(data_view const data) const;
-    //     [[nodiscard]] data_view validate_boolean(data_view const data) const;
-    //     [[nodiscard]] data_view validate_null(data_view const data) const;
+        [[nodiscard]] data_view validate_integral(data_view const data) const;
+        [[nodiscard]] data_view validate_double(data_view const data) const;
+        [[nodiscard]] data_view validate_boolean(data_view const data) const;
+        [[nodiscard]] data_view validate_null(data_view const data) const;
     };
 }
 
-LambdaSnail::resp::data_view LambdaSnail::resp::parser::parse_message(std::string_view const &message) const
+LambdaSnail::resp::data_view LambdaSnail::resp::parser::parse_message_s(std::string_view const &message) const
 {
     auto dummy = message.begin();
-    return parse_message(message, message.begin(), dummy);
+    return parse_message_s(message, message.begin(), dummy);
 }
 
-LambdaSnail::resp::data_view LambdaSnail::resp::parser::parse_message(std::string_view const &message, std::string_view::iterator start, std::string_view::iterator& end) const
+LambdaSnail::resp::data_view LambdaSnail::resp::parser::parse_message_s(std::string_view const &message, std::string_view::iterator start, std::string_view::iterator& end) const
 {
     switch(static_cast<data_type>(*start))
     {
         case data_type::Array:
-            return parse_array(message, ++start, end);
+            return parse_array_s(message, ++start, end);
         case data_type::BulkString:
-            return parse_bulk_string(message, ++start, end);
+            return parse_bulk_string_s(message, ++start, end);
     }
 }
 
-LambdaSnail::resp::data_view LambdaSnail::resp::parser::parse_array(std::string_view const& message, std::string_view::iterator start, std::string_view::iterator& end) const
+LambdaSnail::resp::data_view LambdaSnail::resp::parser::parse_array_s(std::string_view const& message, std::string_view::iterator start, std::string_view::iterator& end) const
 {
     if(start == end)
     {
@@ -92,19 +91,17 @@ LambdaSnail::resp::data_view LambdaSnail::resp::parser::parse_array(std::string_
 
     ++cursor; // '\r'
     ++cursor; // '\n'
-
-    //std::vector<data_view> values(length);
     for(size_t i = 0; i < length; ++i)
     {
         //values[i] = parse_message(message, cursor, end);
-        auto next_string = parse_message(message, cursor, end);
+        auto next_string = parse_message_s(message, cursor, end);
         cursor = end;
     }
 
     return { .type = data_type::Array, .value = std::string_view(start, end) };
 }
 
-LambdaSnail::resp::data_view LambdaSnail::resp::parser::parse_bulk_string(std::string_view const &message, std::string_view::iterator start, std::string_view::iterator&end) const
+LambdaSnail::resp::data_view LambdaSnail::resp::parser::parse_bulk_string_s(std::string_view const &message, std::string_view::iterator start, std::string_view::iterator&end) const
 {
     if(start == end)
     {

@@ -6,7 +6,7 @@ import resp;
 
 void parse_and_print(LambdaSnail::resp::parser const& parser, std::string const& s)
 {
-    auto result = parser.parse_message(s);
+    auto result = parser.parse_message_s(s);
     std::cout << static_cast<int32_t>(result.type) << std::endl;
     std::cout << result.value << std::endl;
 }
@@ -18,7 +18,8 @@ int main()
 
     //char const* message = "$4\r\nINCR\r\n";
     //auto message = "*2\r\n$4\r\nINCR\r\n$4\r\nINCR\r\n";
-    auto message = "*2\r\n$5\r\nHello\r\n$2\r\nThe World\r\n";
+    auto message = "*2\r\n$5\r\nHello\r\n$9\r\nThe World\r\n";
+
 
     LambdaSnail::resp::parser p;
     //auto result = p.parse_message(message);
