@@ -9,7 +9,7 @@ struct ParserTypeTest : public testing::TestWithParam<std::tuple<char const*, La
 
 TEST_P(ParserTypeTest, ParseTypes) {
     auto const params = GetParam();
-    auto const result = parser.parse_simple(std::get<char const*>(params));
+    auto const result = parser.parse_message_s(std::get<char const*>(params));
     EXPECT_EQ(result.type, std::get<LambdaSnail::resp::data_type>(params));
 }
 
@@ -35,7 +35,7 @@ struct ParserErrorTest : public testing::TestWithParam<char const*>
 
 TEST_P(ParserErrorTest, ParseTypesError) {
     auto const params = GetParam();
-    auto const result = parser.parse_simple(params);
+    auto const result = parser.parse_message_s(params);
     EXPECT_EQ(result.type, LambdaSnail::resp::data_type::SimpleError);
 }
 
