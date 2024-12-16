@@ -18,8 +18,9 @@ int main()
 
     //char const* message = "$4\r\nINCR\r\n";
     //auto message = "*2\r\n$4\r\nINCR\r\n$4\r\nINCR\r\n";
-    auto message = "*2\r\n$5\r\nHello\r\n$9\r\nThe World\r\n";
-
+    //auto message = "*2\r\n$5\r\nHello\r\n$9\r\nThe World\r\n";
+    //auto message = "#t\r\n";
+    //auto message = "_\r\n";
 
     LambdaSnail::resp::parser p;
     //auto result = p.parse_message(message);
