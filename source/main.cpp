@@ -11,8 +11,25 @@ void parse_and_print(LambdaSnail::resp::parser const& parser, std::string const&
     std::cout << result.value << std::endl;
 }
 
+template <typename T>
+void materialize_and_print(std::string_view msg)
+{
+    LambdaSnail::resp::data_view data(msg);
+    auto const value = data.materialize(T{});
+    std::cout << value << std::endl;
+}
+
 int main()
 {
+    LambdaSnail::resp::data_view data("#t\r\n");
+    auto const value = data.materialize(LambdaSnail::resp::Boolean{});
+    std::cout << value << std::endl;
+
+    materialize_and_print<LambdaSnail::resp::Integer>(":12345\r\n");
+    materialize_and_print<LambdaSnail::resp::Integer>(":-12345\r\n");
+
+    materialize_and_print<LambdaSnail::resp::Double>(",12.34\r\n");
+
     // runner runner;
     // runner.run(6379);
 
@@ -22,9 +39,9 @@ int main()
     //auto message = "#t\r\n";
     //auto message = "_\r\n";
 
-    LambdaSnail::resp::parser p;
+    //LambdaSnail::resp::parser p;
     //auto result = p.parse_message(message);
-    parse_and_print(p, message);
+    //parse_and_print(p, message);
 
     return 0;
 }
