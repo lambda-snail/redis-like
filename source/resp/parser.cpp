@@ -70,6 +70,7 @@ namespace LambdaSnail::resp
         [[nodiscard]] data_view validate_double(data_view data) const;
         [[nodiscard]] data_view validate_boolean(data_view data) const;
         [[nodiscard]] data_view validate_null(data_view data) const;
+        [[nodiscard]] data_view validate_simple_string(data_view data) const;
     };
 }
 
@@ -369,7 +370,7 @@ LambdaSnail::resp::data_view LambdaSnail::resp::parser::find_end_s(std::string_v
         case data_type::Null:
             return validate_null(data);
         case data_type::SimpleString:
-            return data;
+            return validate_simple_string(data);
         case data_type::SimpleError:
         default:
             break;
@@ -467,4 +468,15 @@ LambdaSnail::resp::data_view LambdaSnail::resp::parser::validate_null(data_view 
     auto const is_length_correct = data.value.size() == 1 or data.value.size() == 3;
     auto const is_type_correct = data.value[0] == '_';
     return is_length_correct and is_type_correct ? data : data_view{ data_type::SimpleError, "Unable to parse string as a null type" };
+}
+
+LambdaSnail::resp::data_view LambdaSnail::resp::parser::validate_simple_string(data_view data) const
+{
+    auto it = data.value.end();
+    if(data.value.size() >= 2 and *(--it) == '\n' and *(--it) == '\r')
+    {
+        return data;
+    }
+
+    return data_view{ data_type::SimpleError, "Unable to parse value as SimpleString" };
 }
