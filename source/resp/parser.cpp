@@ -38,11 +38,14 @@ namespace LambdaSnail::resp
         data_type type{};
         std::string_view value;
 
-        // template<typename T, typename Tag>
-        // T materialize(Tag tag) const;
+        [[nodiscard]] bool is_null() const;
         [[nodiscard]] bool materialize(Boolean) const;
         [[nodiscard]] int64_t materialize(Integer) const;
         [[nodiscard]] double_t materialize(Double) const;
+
+        [[nodiscard]] std::string_view materialize(SimpleString) const;
+        [[nodiscard]] std::string_view materialize(BulkString) const;
+        [[nodiscard]] std::vector<data_view> materialize(Array) const;
     };
 
     struct array
@@ -71,20 +74,28 @@ namespace LambdaSnail::resp
 }
 
 
-LambdaSnail::resp::data_view::data_view(std::string_view message)
+LambdaSnail::resp::data_view::data_view(std::string_view message) //: value(message)
 {
+    //type = value.empty() ? data_type::Null : static_cast<data_type>(value[0]);
     parser p;
     (*this) = p.parse_message_s(message);
 }
 
 LambdaSnail::resp::data_view::data_view(data_type type, std::string_view message) : type(type), value(message) { }
 
-//template<>
+bool LambdaSnail::resp::data_view::is_null() const
+{
+    return type == data_type::Null;
+}
+
 bool LambdaSnail::resp::data_view::materialize(Boolean tag) const
 {
-    if (value.size() == 1) [[likely]]
+    bool const is_bool = not value.empty() && value[0] == '#';
+    bool const has_correct_length = (value.size() == 2) or (value.size() == 4 and value[2] == '\r' and value[3] == '\n');
+
+    if (is_bool and has_correct_length) [[likely]]
     {
-        switch(value[0])
+        switch(value[1])
         {
             case 't':
             case 'T':
@@ -102,15 +113,26 @@ bool LambdaSnail::resp::data_view::materialize(Boolean tag) const
 
 int64_t LambdaSnail::resp::data_view::materialize(Integer) const
 {
-    bool const is_negative { value.size() > 1 and value[0] == '-' };
     auto it_start = value.begin();
+    if(not value.empty() and *it_start == ':')
+    {
+        ++it_start;
+    }
+
+    bool const is_negative { value.size() > 1 and *it_start == '-' };
     if(is_negative)
     {
         ++it_start;
     }
 
+    auto end = value.end();
+    if(*(end-1) == '\n')
+    {
+        end -= 2;
+    }
+
     int64_t integer{};
-    for(auto i = it_start; i < value.end(); ++i)
+    for(auto i = it_start; i < end; ++i)
     {
         integer = (integer*10)+(*i - '0');
     }
@@ -127,9 +149,15 @@ double_t LambdaSnail::resp::data_view::materialize(Double) const
         ++it_start;
     }
 
+    auto end = value.end();
+    if(*(end-1) == '\n')
+    {
+        end -= 2;
+    }
+
     double_t number{};
     auto i = it_start;
-    for(; i < value.end() and (*i != '.' and *i != ','); ++i)
+    for(; i < end and (*i != '.' and *i != ','); ++i)
     {
         number = (number*10.)+(*i - '0');
     }
@@ -141,6 +169,47 @@ double_t LambdaSnail::resp::data_view::materialize(Double) const
     }
 
     return number + fraction*.1;
+}
+
+std::string_view LambdaSnail::resp::data_view::materialize(SimpleString) const
+{
+    return value;
+}
+
+std::string_view LambdaSnail::resp::data_view::materialize(BulkString) const
+{
+    return value;
+}
+
+std::vector<LambdaSnail::resp::data_view> LambdaSnail::resp::data_view::materialize(Array) const
+{
+    auto cursor = value.begin();
+    size_t length {0};
+
+    while(*cursor != '\r')
+    {
+        length = (length*10)+(*cursor - '0');
+        ++cursor;
+    }
+
+    if(not length) [[unlikely]]
+    {
+        return {};
+    }
+
+    ++cursor;
+    ++cursor;
+
+    parser constexpr p;
+    std::vector<data_view> values(length);
+    for(size_t i = 0; i < length; ++i)
+    {
+        std::string_view::iterator end;
+        values[i] = p.parse_message_s(value, cursor, end);
+        cursor = end;
+    }
+
+    return values;
 }
 
 
@@ -270,14 +339,14 @@ LambdaSnail::resp::data_view LambdaSnail::resp::parser::find_end_s(std::string_v
         return { data_type::SimpleError, "Cannot parse empty string to a resp type" };
     }
 
-    data_view data { data_type::SimpleError, {} };
+    data_view data { static_cast<data_type>(*start), {} };
     for(auto i = start+1; i < message.cend(); ++i)
     {
         if(*i == '\n' and *(i-1) == '\r') [[unlikely]]
         {
-            end = i-1;
-            data.value = std::string_view(start+1, end);
-            data.type = static_cast<data_type>(*start);
+            end = i+1; // one past the ending
+            data.value = std::string_view(start, end);
+            //data.type = static_cast<data_type>(*start);
             break;
         }
     }
@@ -306,46 +375,73 @@ LambdaSnail::resp::data_view LambdaSnail::resp::parser::find_end_s(std::string_v
 LambdaSnail::resp::data_view LambdaSnail::resp::parser::validate_integral(data_view const data) const
 {
     auto it_start = data.value.begin();
-    if(data.value.size() > 1 and data.value[0] == '-')
+    if(not data.value.empty() and *it_start == ':')
     {
         ++it_start;
     }
 
-    for(auto i = it_start; i < data.value.end(); ++i)
+    bool const is_negative { data.value.size() > 1 and *it_start == '-' };
+    if(is_negative)
+    {
+        ++it_start;
+    }
+
+    auto i = it_start;
+    for(; i < data.value.end(); ++i)
     {
         if(auto const c = *i; c < '0' or c > '9') [[unlikely]]
         {
-            return { data_type::SimpleError, "Unable to parse string as a integral type" };
+            break;
         }
     }
 
-    return data;
+    if(data.value.end()-i == 2)
+    {
+        return data;
+    }
+
+    return { data_type::SimpleError, "Unable to parse string as an integer type" };
 }
 
 LambdaSnail::resp::data_view LambdaSnail::resp::parser::validate_double(data_view const data) const
 {
     auto it_start = data.value.begin();
-    if(data.value.size() > 1 and data.value[0] == '-')
+    if(not data.value.empty() and *it_start == ',')
     {
         ++it_start;
     }
 
-    for(auto i = it_start; i < data.value.end(); ++i)
+    bool const is_negative { data.value.size() > 1 and *it_start == '-' };
+    if(is_negative)
+    {
+        ++it_start;
+    }
+
+    auto i = it_start;
+    for(; i < data.value.end(); ++i)
     {
         if(auto const c = *i; (c < '0' or c > '9') and c != '.' and c != ',') [[unlikely]]
         {
-            return { data_type::SimpleError, "Unable to parse string as a double type" };
+            break;
         }
     }
 
-    return data;
+    if(data.value.end()-i == 2)
+    {
+        return data;
+    }
+
+    return { data_type::SimpleError, "Unable to parse string as a double type" };
 }
 
 LambdaSnail::resp::data_view LambdaSnail::resp::parser::validate_boolean(data_view const data) const
 {
-    if (data.value.size() == 1) [[likely]]
+    bool const is_bool = not data.value.empty() && data.value[0] == '#';
+    bool const has_correct_length = (data.value.size() == 2) or (data.value.size() == 4 and data.value[2] == '\r' and data.value[3] == '\n');
+
+    if (is_bool and has_correct_length) [[likely]]
     {
-        switch(data.value[0])
+        switch(data.value[1])
         {
             case 't':
             case 'T':
