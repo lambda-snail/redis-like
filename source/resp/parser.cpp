@@ -237,6 +237,8 @@ LambdaSnail::resp::data_view LambdaSnail::resp::parser::parse_message_s(std::str
         case data_type::Null:
         case data_type::SimpleString:
             return find_end_s(message, start, end); // How do we communicate that we need start and not ++start from an api perspective?
+        default:
+            break;
     }
 
     return { data_type::SimpleError, "Unsupported type: " + *start };
