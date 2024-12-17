@@ -90,7 +90,7 @@ constexpr bool LambdaSnail::resp::data_view::is_null() const
 
 constexpr bool LambdaSnail::resp::data_view::materialize(Boolean tag) const
 {
-    bool const is_bool = not value.empty() && value[0] == '#';
+    bool const is_bool = not value.empty() && value[0] == static_cast<char>(data_type::Boolean);
     bool const has_correct_length = (value.size() == 2) or (value.size() == 4 and value[2] == '\r' and value[3] == '\n');
 
     if (is_bool and has_correct_length) [[likely]]
@@ -114,7 +114,7 @@ constexpr bool LambdaSnail::resp::data_view::materialize(Boolean tag) const
 constexpr int64_t LambdaSnail::resp::data_view::materialize(Integer) const
 {
     auto it_start = value.begin();
-    if(not value.empty() and *it_start == ':')
+    if(not value.empty() and *it_start == static_cast<char>(data_type::Integer))
     {
         ++it_start;
     }
@@ -143,7 +143,7 @@ constexpr int64_t LambdaSnail::resp::data_view::materialize(Integer) const
 constexpr double_t LambdaSnail::resp::data_view::materialize(Double) const
 {
     auto it = value.begin();
-    if(not value.empty() and *it == ',')
+    if(not value.empty() and *it == static_cast<char>(data_type::Double))
     {
         ++it;
     }
@@ -316,21 +316,6 @@ constexpr LambdaSnail::resp::data_view LambdaSnail::resp::parser::parse_bulk_str
     return data;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 constexpr LambdaSnail::resp::data_view LambdaSnail::resp::parser::find_end_s(std::string_view const& message) const
 {
     std::string_view::iterator dummy;
@@ -380,7 +365,7 @@ constexpr LambdaSnail::resp::data_view LambdaSnail::resp::parser::find_end_s(std
 constexpr LambdaSnail::resp::data_view LambdaSnail::resp::parser::validate_integral(data_view const data) const
 {
     auto it_start = data.value.begin();
-    if(not data.value.empty() and *it_start == ':')
+    if(not data.value.empty() and *it_start == static_cast<char>(data_type::Integer))
     {
         ++it_start;
     }
@@ -411,7 +396,7 @@ constexpr LambdaSnail::resp::data_view LambdaSnail::resp::parser::validate_integ
 constexpr LambdaSnail::resp::data_view LambdaSnail::resp::parser::validate_double(data_view const data) const
 {
     auto it_start = data.value.begin();
-    if(not data.value.empty() and *it_start == ',')
+    if(not data.value.empty() and *it_start == static_cast<char>(data_type::Double))
     {
         ++it_start;
     }
@@ -441,7 +426,7 @@ constexpr LambdaSnail::resp::data_view LambdaSnail::resp::parser::validate_doubl
 
 constexpr LambdaSnail::resp::data_view LambdaSnail::resp::parser::validate_boolean(data_view const data) const
 {
-    bool const is_bool = not data.value.empty() && data.value[0] == '#';
+    bool const is_bool = not data.value.empty() && data.value[0] == static_cast<char>(data_type::Boolean);
     bool const has_correct_length = (data.value.size() == 2) or (data.value.size() == 4 and data.value[2] == '\r' and data.value[3] == '\n');
 
     if (is_bool and has_correct_length) [[likely]]
@@ -464,14 +449,14 @@ constexpr LambdaSnail::resp::data_view LambdaSnail::resp::parser::validate_boole
 constexpr LambdaSnail::resp::data_view LambdaSnail::resp::parser::validate_null(data_view const data) const
 {
     auto const is_length_correct = data.value.size() == 1 or data.value.size() == 3;
-    auto const is_type_correct = data.value[0] == '_';
+    auto const is_type_correct = data.value[0] == static_cast<char>(data_type::Null);
     return is_length_correct and is_type_correct ? data : data_view{ data_type::SimpleError, "Unable to parse string as a null type" };
 }
 
 constexpr LambdaSnail::resp::data_view LambdaSnail::resp::parser::validate_simple_string(data_view data) const
 {
     auto it = data.value.end();
-    if(data.value.size() >= 2 and *(--it) == '\n' and *(--it) == '\r')
+    if(data.value.size() >= 2 and data.value[0] == static_cast<char>(data_type::SimpleString) and *(--it) == '\n' and *(--it) == '\r')
     {
         return data;
     }
