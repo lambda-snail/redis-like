@@ -462,5 +462,7 @@ LambdaSnail::resp::data_view LambdaSnail::resp::parser::validate_boolean(data_vi
 
 LambdaSnail::resp::data_view LambdaSnail::resp::parser::validate_null(data_view const data) const
 {
-    return data.value.empty() ? data : data_view{ data_type::SimpleError, "Unable to parse string as a null type" };
+    auto const is_length_correct = data.value.size() == 1 or data.value.size() == 3;
+    auto const is_type_correct = data.value[0] == '_';
+    return is_length_correct and is_type_correct ? data : data_view{ data_type::SimpleError, "Unable to parse string as a null type" };
 }

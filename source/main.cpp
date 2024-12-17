@@ -33,7 +33,7 @@ void materialize_and_print(std::string_view msg)
 {
     LambdaSnail::resp::data_view data(msg);
     auto const value = data.is_null();
-    std::cout << value << std::endl;
+    std::cout << "is null: " << value << std::endl;
 }
 
 int main()
