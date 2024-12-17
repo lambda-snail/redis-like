@@ -142,11 +142,16 @@ int64_t LambdaSnail::resp::data_view::materialize(Integer) const
 
 double_t LambdaSnail::resp::data_view::materialize(Double) const
 {
-    bool const is_negative { value.size() > 1 and value[0] == '-' };
-    auto it_start = value.begin();
+    auto it = value.begin();
+    if(not value.empty() and *it == ',')
+    {
+        ++it;
+    }
+
+    bool const is_negative { value.size() > 1 and *it == '-' };
     if(is_negative)
     {
-        ++it_start;
+        ++it;
     }
 
     auto end = value.end();
@@ -156,14 +161,13 @@ double_t LambdaSnail::resp::data_view::materialize(Double) const
     }
 
     double_t number{};
-    auto i = it_start;
-    for(; i < end and (*i != '.' and *i != ','); ++i)
+    for(; it < end and (*it != '.' and *it != ','); ++it)
     {
-        number = (number*10.)+(*i - '0');
+        number = (number*10.)+(*it - '0');
     }
 
     double_t fraction{};
-    for(auto j = value.end()-1; j > i; --j)
+    for(auto j = end-1; j > it; --j)
     {
         fraction = (fraction*.1)+(*j - '0');
     }

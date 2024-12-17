@@ -46,6 +46,7 @@ int main()
     materialize_and_print<LambdaSnail::resp::Integer>(":-12345\r\n");
 
     materialize_and_print<LambdaSnail::resp::Double>(",12.34\r\n");
+    materialize_and_print<LambdaSnail::resp::Double>(",-12.34\r\n");
 
     materialize_and_print("_\r\n");
     materialize_and_print_array("*2\r\n$4\r\nINCR\r\n+INCR\r\n");
