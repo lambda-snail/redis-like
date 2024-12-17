@@ -31,21 +31,21 @@ namespace LambdaSnail::resp
 
     export struct data_view
     {
-        data_view() = default;
-        data_view(data_type type, std::string_view message);
-        explicit data_view(std::string_view message);
+        constexpr data_view() = default;
+        constexpr data_view(data_type type, std::string_view message);
+        constexpr explicit data_view(std::string_view message);
 
         data_type type{};
         std::string_view value;
 
-        [[nodiscard]] bool is_null() const;
-        [[nodiscard]] bool materialize(Boolean) const;
-        [[nodiscard]] int64_t materialize(Integer) const;
-        [[nodiscard]] double_t materialize(Double) const;
+        [[nodiscard]] constexpr bool is_null() const;
+        [[nodiscard]] constexpr bool materialize(Boolean) const;
+        [[nodiscard]] constexpr int64_t materialize(Integer) const;
+        [[nodiscard]] constexpr double_t materialize(Double) const;
 
-        [[nodiscard]] std::string_view materialize(SimpleString) const;
-        [[nodiscard]] std::string_view materialize(BulkString) const;
-        [[nodiscard]] std::vector<data_view> materialize(Array) const;
+        [[nodiscard]] constexpr std::string_view materialize(SimpleString) const;
+        [[nodiscard]] constexpr std::string_view materialize(BulkString) const;
+        [[nodiscard]] constexpr std::vector<data_view> materialize(Array) const;
     };
 
     struct array
@@ -56,40 +56,39 @@ namespace LambdaSnail::resp
     export class parser
     {
     public:
-        [[nodiscard]] data_view parse_message_s(std::string_view const& message) const;
-        [[nodiscard]] data_view parse_message_s(std::string_view const &message, std::string_view::iterator start, std::string_view::iterator &end) const;
+        [[nodiscard]] constexpr data_view parse_message_s(std::string_view const& message) const;
+        [[nodiscard]] constexpr data_view parse_message_s(std::string_view const &message, std::string_view::iterator start, std::string_view::iterator &end) const;
 
-        [[nodiscard]] data_view parse_array_s(std::string_view const &message, std::string_view::iterator start, std::string_view::iterator &end) const;
-        [[nodiscard]] data_view parse_bulk_string_s(std::string_view const &message, std::string_view::iterator start, std::string_view::iterator &end) const;
+        [[nodiscard]] constexpr data_view parse_array_s(std::string_view const &message, std::string_view::iterator start, std::string_view::iterator &end) const;
+        [[nodiscard]] constexpr data_view parse_bulk_string_s(std::string_view const &message, std::string_view::iterator start, std::string_view::iterator &end) const;
 
     private:
-        [[nodiscard]] data_view find_end_s(std::string_view const &message) const;
-        [[nodiscard]] data_view find_end_s(std::string_view const &message, std::string_view::iterator start, std::string_view::iterator &end) const;
+        [[nodiscard]] constexpr data_view find_end_s(std::string_view const &message) const;
+        [[nodiscard]] constexpr data_view find_end_s(std::string_view const &message, std::string_view::iterator start, std::string_view::iterator &end) const;
 
-        [[nodiscard]] data_view validate_integral(data_view data) const;
-        [[nodiscard]] data_view validate_double(data_view data) const;
-        [[nodiscard]] data_view validate_boolean(data_view data) const;
-        [[nodiscard]] data_view validate_null(data_view data) const;
-        [[nodiscard]] data_view validate_simple_string(data_view data) const;
+        [[nodiscard]] constexpr data_view validate_integral(data_view data) const;
+        [[nodiscard]] constexpr data_view validate_double(data_view data) const;
+        [[nodiscard]] constexpr data_view validate_boolean(data_view data) const;
+        [[nodiscard]] constexpr data_view validate_null(data_view data) const;
+        [[nodiscard]] constexpr data_view validate_simple_string(data_view data) const;
     };
 }
 
 
-LambdaSnail::resp::data_view::data_view(std::string_view message) //: value(message)
+constexpr LambdaSnail::resp::data_view::data_view(std::string_view message)
 {
-    //type = value.empty() ? data_type::Null : static_cast<data_type>(value[0]);
     parser p;
     (*this) = p.parse_message_s(message);
 }
 
-LambdaSnail::resp::data_view::data_view(data_type type, std::string_view message) : type(type), value(message) { }
+constexpr LambdaSnail::resp::data_view::data_view(data_type type, std::string_view message) : type(type), value(message) { }
 
-bool LambdaSnail::resp::data_view::is_null() const
+constexpr bool LambdaSnail::resp::data_view::is_null() const
 {
     return type == data_type::Null;
 }
 
-bool LambdaSnail::resp::data_view::materialize(Boolean tag) const
+constexpr bool LambdaSnail::resp::data_view::materialize(Boolean tag) const
 {
     bool const is_bool = not value.empty() && value[0] == '#';
     bool const has_correct_length = (value.size() == 2) or (value.size() == 4 and value[2] == '\r' and value[3] == '\n');
@@ -112,7 +111,7 @@ bool LambdaSnail::resp::data_view::materialize(Boolean tag) const
     throw std::runtime_error("Attempt to materialize an invalid bool");
 }
 
-int64_t LambdaSnail::resp::data_view::materialize(Integer) const
+constexpr int64_t LambdaSnail::resp::data_view::materialize(Integer) const
 {
     auto it_start = value.begin();
     if(not value.empty() and *it_start == ':')
@@ -141,7 +140,7 @@ int64_t LambdaSnail::resp::data_view::materialize(Integer) const
     return is_negative ? -integer : integer;
 }
 
-double_t LambdaSnail::resp::data_view::materialize(Double) const
+constexpr double_t LambdaSnail::resp::data_view::materialize(Double) const
 {
     auto it = value.begin();
     if(not value.empty() and *it == ',')
@@ -176,17 +175,17 @@ double_t LambdaSnail::resp::data_view::materialize(Double) const
     return number + fraction*.1;
 }
 
-std::string_view LambdaSnail::resp::data_view::materialize(SimpleString) const
+constexpr std::string_view LambdaSnail::resp::data_view::materialize(SimpleString) const
 {
     return value;
 }
 
-std::string_view LambdaSnail::resp::data_view::materialize(BulkString) const
+constexpr std::string_view LambdaSnail::resp::data_view::materialize(BulkString) const
 {
     return value;
 }
 
-std::vector<LambdaSnail::resp::data_view> LambdaSnail::resp::data_view::materialize(Array) const
+constexpr std::vector<LambdaSnail::resp::data_view> LambdaSnail::resp::data_view::materialize(Array) const
 {
     auto cursor = value.begin();
     size_t length {0};
@@ -217,14 +216,13 @@ std::vector<LambdaSnail::resp::data_view> LambdaSnail::resp::data_view::material
     return values;
 }
 
-
-LambdaSnail::resp::data_view LambdaSnail::resp::parser::parse_message_s(std::string_view const &message) const
+constexpr LambdaSnail::resp::data_view LambdaSnail::resp::parser::parse_message_s(std::string_view const &message) const
 {
     auto dummy = message.begin();
     return parse_message_s(message, message.begin(), dummy);
 }
 
-LambdaSnail::resp::data_view LambdaSnail::resp::parser::parse_message_s(std::string_view const &message, std::string_view::iterator start, std::string_view::iterator& end) const
+constexpr LambdaSnail::resp::data_view LambdaSnail::resp::parser::parse_message_s(std::string_view const &message, std::string_view::iterator start, std::string_view::iterator& end) const
 {
     switch(static_cast<data_type>(*start))
     {
@@ -245,7 +243,7 @@ LambdaSnail::resp::data_view LambdaSnail::resp::parser::parse_message_s(std::str
     return { data_type::SimpleError, "Unsupported type: " + *start };
 }
 
-LambdaSnail::resp::data_view LambdaSnail::resp::parser::parse_array_s(std::string_view const& message, std::string_view::iterator start, std::string_view::iterator& end) const
+constexpr LambdaSnail::resp::data_view LambdaSnail::resp::parser::parse_array_s(std::string_view const& message, std::string_view::iterator start, std::string_view::iterator& end) const
 {
     if(start == end)
     {
@@ -283,7 +281,7 @@ LambdaSnail::resp::data_view LambdaSnail::resp::parser::parse_array_s(std::strin
     return { data_type::Array, std::string_view(start, end) };
 }
 
-LambdaSnail::resp::data_view LambdaSnail::resp::parser::parse_bulk_string_s(std::string_view const &message, std::string_view::iterator start, std::string_view::iterator&end) const
+constexpr LambdaSnail::resp::data_view LambdaSnail::resp::parser::parse_bulk_string_s(std::string_view const &message, std::string_view::iterator start, std::string_view::iterator&end) const
 {
     if(start == end)
     {
@@ -333,13 +331,13 @@ LambdaSnail::resp::data_view LambdaSnail::resp::parser::parse_bulk_string_s(std:
 
 
 
-LambdaSnail::resp::data_view LambdaSnail::resp::parser::find_end_s(std::string_view const& message) const
+constexpr LambdaSnail::resp::data_view LambdaSnail::resp::parser::find_end_s(std::string_view const& message) const
 {
     std::string_view::iterator dummy;
     return find_end_s(message, message.cbegin(), dummy);
 }
 
-LambdaSnail::resp::data_view LambdaSnail::resp::parser::find_end_s(std::string_view const& message, std::string_view::iterator start, std::string_view::iterator &end) const
+constexpr LambdaSnail::resp::data_view LambdaSnail::resp::parser::find_end_s(std::string_view const& message, std::string_view::iterator start, std::string_view::iterator &end) const
 {
     if(message.empty())
     {
@@ -379,7 +377,7 @@ LambdaSnail::resp::data_view LambdaSnail::resp::parser::find_end_s(std::string_v
     return { data_type::SimpleError, "Unable to parse string as a resp type" };
 }
 
-LambdaSnail::resp::data_view LambdaSnail::resp::parser::validate_integral(data_view const data) const
+constexpr LambdaSnail::resp::data_view LambdaSnail::resp::parser::validate_integral(data_view const data) const
 {
     auto it_start = data.value.begin();
     if(not data.value.empty() and *it_start == ':')
@@ -410,7 +408,7 @@ LambdaSnail::resp::data_view LambdaSnail::resp::parser::validate_integral(data_v
     return { data_type::SimpleError, "Unable to parse string as an integer type" };
 }
 
-LambdaSnail::resp::data_view LambdaSnail::resp::parser::validate_double(data_view const data) const
+constexpr LambdaSnail::resp::data_view LambdaSnail::resp::parser::validate_double(data_view const data) const
 {
     auto it_start = data.value.begin();
     if(not data.value.empty() and *it_start == ',')
@@ -441,7 +439,7 @@ LambdaSnail::resp::data_view LambdaSnail::resp::parser::validate_double(data_vie
     return { data_type::SimpleError, "Unable to parse string as a double type" };
 }
 
-LambdaSnail::resp::data_view LambdaSnail::resp::parser::validate_boolean(data_view const data) const
+constexpr LambdaSnail::resp::data_view LambdaSnail::resp::parser::validate_boolean(data_view const data) const
 {
     bool const is_bool = not data.value.empty() && data.value[0] == '#';
     bool const has_correct_length = (data.value.size() == 2) or (data.value.size() == 4 and data.value[2] == '\r' and data.value[3] == '\n');
@@ -463,14 +461,14 @@ LambdaSnail::resp::data_view LambdaSnail::resp::parser::validate_boolean(data_vi
     return { data_type::SimpleError, "Unable to parse string as a boolean type" };
 }
 
-LambdaSnail::resp::data_view LambdaSnail::resp::parser::validate_null(data_view const data) const
+constexpr LambdaSnail::resp::data_view LambdaSnail::resp::parser::validate_null(data_view const data) const
 {
     auto const is_length_correct = data.value.size() == 1 or data.value.size() == 3;
     auto const is_type_correct = data.value[0] == '_';
     return is_length_correct and is_type_correct ? data : data_view{ data_type::SimpleError, "Unable to parse string as a null type" };
 }
 
-LambdaSnail::resp::data_view LambdaSnail::resp::parser::validate_simple_string(data_view data) const
+constexpr LambdaSnail::resp::data_view LambdaSnail::resp::parser::validate_simple_string(data_view data) const
 {
     auto it = data.value.end();
     if(data.value.size() >= 2 and *(--it) == '\n' and *(--it) == '\r')
