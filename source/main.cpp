@@ -31,21 +31,21 @@ void materialize_and_print(std::string_view msg)
 
 int main()
 {
-    LambdaSnail::resp::data_view data("#t\r\n");
-    auto const value = data.materialize(LambdaSnail::resp::Boolean{});
-    std::cout << value << std::endl;
+    // LambdaSnail::resp::data_view data("#t\r\n");
+    // auto const value = data.materialize(LambdaSnail::resp::Boolean{});
+    // std::cout << value << std::endl;
+    //
+    // materialize_and_print<LambdaSnail::resp::Integer>(":12345\r\n");
+    // materialize_and_print<LambdaSnail::resp::Integer>(":-12345\r\n");
+    //
+    // materialize_and_print<LambdaSnail::resp::Double>(",12.34\r\n");
+    // materialize_and_print<LambdaSnail::resp::Double>(",-12.34\r\n");
+    //
+    // materialize_and_print("_\r\n");
+    // materialize_and_print_array("*2\r\n$4\r\nINCR\r\n+INCR\r\n");
 
-    materialize_and_print<LambdaSnail::resp::Integer>(":12345\r\n");
-    materialize_and_print<LambdaSnail::resp::Integer>(":-12345\r\n");
-
-    materialize_and_print<LambdaSnail::resp::Double>(",12.34\r\n");
-    materialize_and_print<LambdaSnail::resp::Double>(",-12.34\r\n");
-
-    materialize_and_print("_\r\n");
-    materialize_and_print_array("*2\r\n$4\r\nINCR\r\n+INCR\r\n");
-
-    // runner runner;
-    // runner.run(6379);
+    runner runner;
+    runner.run(6379);
 
     return 0;
 }
