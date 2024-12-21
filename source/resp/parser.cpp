@@ -1,5 +1,6 @@
 module;
 
+#include <cassert>
 #include <cmath>
 #include <cstdint>
 #include <stdexcept>
@@ -10,7 +11,7 @@ export module resp :resp.parser;
 
 namespace LambdaSnail::resp
 {
-    export enum class data_type
+    export enum class data_type : uint8_t
     {
         SimpleString    = '+',
         SimpleError     = '-',
@@ -190,12 +191,38 @@ constexpr std::string_view LambdaSnail::resp::data_view::materialize(SimpleStrin
 
 constexpr std::string_view LambdaSnail::resp::data_view::materialize(BulkString) const
 {
-    return value;
+    assert(*value.begin() == static_cast<char>(data_type::BulkString));
+
+    if(value.size() == 1)
+    {
+        return {};
+    }
+
+    auto cursor = value.begin() + 1;
+    size_t length {0};
+
+    while(*cursor != '\r')
+    {
+        length = (length*10)+(*cursor - '0');
+        ++cursor;
+    }
+
+    if(not length) [[unlikely]]
+    {
+        return {};
+    }
+
+    ++cursor;
+    ++cursor;
+
+    return { cursor, length };
 }
 
 constexpr std::vector<LambdaSnail::resp::data_view> LambdaSnail::resp::data_view::materialize(Array) const
 {
-    auto cursor = value.begin();
+    assert(*value.begin() == static_cast<char>(data_type::Array));
+
+    auto cursor = value.begin() + 1;
     size_t length {0};
 
     while(*cursor != '\r')
@@ -226,7 +253,7 @@ constexpr std::vector<LambdaSnail::resp::data_view> LambdaSnail::resp::data_view
 
 constexpr LambdaSnail::resp::data_view LambdaSnail::resp::parser::parse_message_s(std::string_view const &message) const
 {
-    auto dummy = message.begin();
+    auto dummy = message.end();
     return parse_message_s(message, message.begin(), dummy);
 }
 
@@ -235,9 +262,9 @@ constexpr LambdaSnail::resp::data_view LambdaSnail::resp::parser::parse_message_
     switch(static_cast<data_type>(*start))
     {
         case data_type::Array:
-            return parse_array_s(message, ++start, end);
+            return parse_array_s(message, start, end);
         case data_type::BulkString:
-            return parse_bulk_string_s(message, ++start, end);
+            return parse_bulk_string_s(message, start, end);
         case data_type::Boolean:
         case data_type::Integer:
         case data_type::Double:
@@ -253,12 +280,12 @@ constexpr LambdaSnail::resp::data_view LambdaSnail::resp::parser::parse_message_
 
 constexpr LambdaSnail::resp::data_view LambdaSnail::resp::parser::parse_array_s(std::string_view const& message, std::string_view::iterator start, std::string_view::iterator& end) const
 {
-    if(start == end)
+    if(start == end or (message.size() == 1 and *start == static_cast<char>(data_type::Array)))
     {
         return { data_type::Array, {} };
     }
 
-    auto cursor = start;
+    auto cursor = start + 1;
     size_t length {0};
 
     while(*cursor != '\r')
@@ -291,12 +318,12 @@ constexpr LambdaSnail::resp::data_view LambdaSnail::resp::parser::parse_array_s(
 
 constexpr LambdaSnail::resp::data_view LambdaSnail::resp::parser::parse_bulk_string_s(std::string_view const &message, std::string_view::iterator start, std::string_view::iterator&end) const
 {
-    if(start == end)
+    if(message.size() == 1)
     {
         return { data_type::BulkString, {} };
     }
 
-    auto cursor = start;
+    auto cursor = start + 1;
     size_t length {0};
 
     while(*cursor != '\r')
@@ -313,7 +340,7 @@ constexpr LambdaSnail::resp::data_view LambdaSnail::resp::parser::parse_bulk_str
     ++cursor; // '\r'
     ++cursor; // '\n'
 
-    start = cursor;
+    //start = cursor;
     std::ranges::advance(cursor, static_cast<std::iter_difference_t<std::string_view::iterator>>(length));
     data_view const data { data_type::BulkString, std::string_view(start, cursor) };
 

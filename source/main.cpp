@@ -1,8 +1,12 @@
-import networking;
-import resp;
+module;
 
 #include <iostream>
 #include <string>
+
+export module main;
+
+import networking;
+import resp;
 
 void materialize_and_print_array(std::string_view msg)
 {
@@ -42,7 +46,9 @@ int main()
     // materialize_and_print<LambdaSnail::resp::Double>(",-12.34\r\n");
     //
     // materialize_and_print("_\r\n");
-    // materialize_and_print_array("*2\r\n$4\r\nINCR\r\n+INCR\r\n");
+    //materialize_and_print_array("*2\r\n$4\r\nINCR\r\n+INCR\r\n");
+
+    // materialize_and_print<LambdaSnail::resp::BulkString>("$4\r\nINCR\r\n");
 
     runner runner;
     runner.run(6379);

@@ -1,3 +1,3 @@
 export module networking;
 
-export import :resp.server;
+export import :resp.tcp_server;

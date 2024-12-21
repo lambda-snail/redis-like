@@ -1,14 +1,18 @@
 module;
 
 #include <iostream>
-#include <ranges>
-#include <string_view>
+//#include <ranges>
+//#include <string_view>
 
 #include <asio.hpp>
 #include <asio/io_context.hpp>
 #include <asio/ts/internet.hpp>
 
-export module networking :resp.server;
+export module networking :resp.tcp_server;
+
+//import <iostream>;
+import server;
+import resp;
 
 class tcp_connection : public std::enable_shared_from_this<tcp_connection>
 {
@@ -35,33 +39,15 @@ public:
                 std::cout << std::endl << std::format(
                     "[Connection] Bytes available for reading: {}", length) << std::endl;
 
-                this_->m_data.insert(this_->m_data.begin(), this_->m_buffer.begin(), this_->m_buffer.end());
-                // for (size_t b = 0; b < length; ++b)
-                // {
-                //     this_->m_data[b] = this_->m_buffer[b];
-                //     // if (this_->m_buffer[b] != '\r')
-                //     // {
-                //     //     std::clog << this_->m_buffer[b];
-                //     // }
-                // }
+                // this_->m_data.insert(this_->m_data.begin(), this_->m_buffer.begin(), this_->m_buffer.end());
 
-                // auto it_end = this_->m_buffer.begin();
-                // std::ranges::advance(it_end, static_cast<std::iter_difference_t<decltype(this_->m_buffer)>>(length));
-                //
-                // this_->m_data.insert(this_->m_data.end(), this_->m_buffer.begin(), this_->m_buffer.end());
-
-                // Need to parse http header to find content length and continue reading rest of the data
-                // Or better yet, use library for handling http related stuff
-                // this_->read_request();
-
-                // Since this is just a demo, we stop reading here and write the response
-                this_->write_echo();
+                this_->handle_command(length);
             } else if (e != asio::error::eof)
             {
                 std::clog << std::format("Handler encountered error: {}", e.message());
             } else
             {
-                this_->write_echo();
+                //this_->handle_command();
             }
         });
     }
@@ -71,17 +57,41 @@ public:
         std::clog << "[Connection] Destroyed" << std::endl;
     }
 private:
-    void write_echo()
+    void handle_command(size_t length)
     {
-        std::clog << "[Connection] --- Response ---" << std::endl;
-        for (auto c : m_data)
+        LambdaSnail::resp::data_view resp_data(std::string_view(m_buffer.begin(), m_buffer.end()));
+
+        auto request = resp_data.materialize(LambdaSnail::resp::Array{});
+
+        // Ugly hard coding
+        std::string response;
+        if(request.size() == 1 and request[0].type == LambdaSnail::resp::data_type::BulkString)
         {
-            if (c != '\r')
+            auto _1 = request[0].materialize(LambdaSnail::resp::BulkString{});
+            if(_1 == "PING")
             {
-                std::clog << c;
+                LambdaSnail::server::ping_handler cmd;
+                response = cmd.handle().value;
             }
         }
-        std::clog << "[Connection] --- End Response ---" << std::endl;
+        else if(request.size() == 2)
+        {
+            auto _1 = request[0].materialize(LambdaSnail::resp::BulkString{});
+            if(_1 == "ECHO")
+            {
+                LambdaSnail::server::echo_handler cmd;
+                auto const _2 = cmd.handle(request[1]).materialize(LambdaSnail::resp::BulkString{});
+                response = _2;
+
+                // Hack to produce bulk string
+                response = "$" + std::to_string(response.size()) + "\r\n" + response;
+                //response = "+" + response;
+            }
+        }
+
+        response += "\r\n";
+
+        this->m_data.insert(this->m_data.begin(), response.begin(), response.end());
 
         asio::async_write(m_socket, asio::buffer(m_data),
           [this_ = shared_from_this()](asio::error_code ec, size_t length)

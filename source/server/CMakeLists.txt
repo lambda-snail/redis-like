@@ -7,3 +7,5 @@ target_sources(server
 )
 
 add_library(LambdaSnail::server ALIAS server)
+
+target_link_libraries(server PRIVATE LambdaSnail::resp)

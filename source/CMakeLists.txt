@@ -14,7 +14,12 @@ add_subdirectory(networking)
 add_subdirectory(server)
 
 add_executable(redis-like main.cpp)
+target_sources(redis-like
+        PUBLIC
+        FILE_SET CXX_MODULES FILES
+        main.cpp
+)
 
 #redis_like_target_properties(resp)
 
-target_link_libraries(redis-like PRIVATE asio LambdaSnail::resp LambdaSnail::networking)
+target_link_libraries(redis-like PRIVATE asio LambdaSnail::resp LambdaSnail::networking LambdaSnail::server)

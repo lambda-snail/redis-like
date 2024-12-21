@@ -39,3 +39,5 @@ target_sources(networking
 )
 
 add_library(LambdaSnail::networking ALIAS networking)
+
+target_link_libraries(networking PRIVATE LambdaSnail::resp LambdaSnail::server)

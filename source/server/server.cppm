@@ -1,3 +1,3 @@
 export module server;
 
-export import :commands;
+export import :resp.commands;
