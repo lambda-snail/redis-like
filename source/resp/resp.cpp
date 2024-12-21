@@ -1,3 +1,3 @@
 export module resp;
 
-export import : iface.parser;
+export import :resp.parser;

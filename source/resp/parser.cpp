@@ -6,7 +6,7 @@ module;
 #include <string>
 #include <vector>
 
-export module resp : iface.parser;
+export module resp :resp.parser;
 
 namespace LambdaSnail::resp
 {
@@ -48,12 +48,7 @@ namespace LambdaSnail::resp
         [[nodiscard]] constexpr std::vector<data_view> materialize(Array) const;
     };
 
-    struct array
-    {
-        std::vector<data_view> value{};
-    };
-
-    export class parser
+    class parser
     {
     public:
         [[nodiscard]] constexpr data_view parse_message_s(std::string_view const& message) const;

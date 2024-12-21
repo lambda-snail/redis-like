@@ -8,7 +8,7 @@ module;
 #include <asio/io_context.hpp>
 #include <asio/ts/internet.hpp>
 
-export module networking : iface.server;
+export module networking :resp.server;
 
 class tcp_connection : public std::enable_shared_from_this<tcp_connection>
 {
