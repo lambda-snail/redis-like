@@ -52,6 +52,20 @@ namespace ParseValidTests
         LambdaSnail::resp::SimpleString type;
     };
 
+    struct TestBulkString
+    {
+        char const* data = "$4\r\nINCR\r\n";
+        std::string expected = "INCR";
+        LambdaSnail::resp::BulkString type;
+    };
+
+    struct TestBulkStringWithLineEndings
+    {
+        char const* data = "$20\r\nINCR\r\nThe other line\r\n";
+        std::string expected = "INCR\r\nThe other line";
+        LambdaSnail::resp::BulkString type;
+    };
+
     TYPED_TEST_SUITE_P(RespStringTestFixture);
 
     TYPED_TEST_P(RespStringTestFixture, TestMaterializeValidResp)
@@ -64,7 +78,13 @@ namespace ParseValidTests
 
     REGISTER_TYPED_TEST_SUITE_P(RespStringTestFixture, TestMaterializeValidResp);
 
-    using ValidRespStringTest_Types = ::testing::Types<TestInt, TestNegativeInt, TestDouble, TestNegativeDouble, TestBool, TestSimpleString>;
+    using ValidRespStringTest_Types = ::testing::Types<
+        TestInt, TestNegativeInt,
+        TestDouble, TestNegativeDouble,
+        TestBool,
+        TestSimpleString, TestBulkString, TestBulkStringWithLineEndings
+    >;
+
     INSTANTIATE_TYPED_TEST_SUITE_P(TestMaterializeValidResp,RespStringTestFixture,ValidRespStringTest_Types);
 }
 
