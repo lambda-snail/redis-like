@@ -167,7 +167,7 @@ constexpr double_t LambdaSnail::resp::data_view::materialize(Double) const
         fraction = (fraction*.1)+(*j - '0');
     }
 
-    return number + fraction*.1;
+    return (number + fraction*.1) * (is_negative ? -1 : 1);
 }
 
 constexpr std::string_view LambdaSnail::resp::data_view::materialize(SimpleString) const
