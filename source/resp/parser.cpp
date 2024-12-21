@@ -172,7 +172,20 @@ constexpr double_t LambdaSnail::resp::data_view::materialize(Double) const
 
 constexpr std::string_view LambdaSnail::resp::data_view::materialize(SimpleString) const
 {
-    return value;
+    size_t start = 0;
+    size_t length = value.length();
+    if(not value.empty() and *value.begin() == static_cast<char>(data_type::SimpleString)) [[likely]]
+    {
+        --length;
+        ++start;
+    }
+
+    if(value.size() > 1 and *(value.end()-1) == '\n')
+    {
+        length -= 2;
+    }
+
+    return value.substr(start, length);
 }
 
 constexpr std::string_view LambdaSnail::resp::data_view::materialize(BulkString) const

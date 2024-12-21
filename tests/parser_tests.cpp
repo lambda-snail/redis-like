@@ -5,7 +5,7 @@ import resp;
 namespace ParseValidTests
 {
     template<typename T>
-    struct ValidRespStringTestFixture : public testing::Test {};//WithParam<char const*>
+    struct RespStringTestFixture : public testing::Test {};//WithParam<char const*>
     // {
     //     using Type = RespType;
     // };
@@ -38,24 +38,34 @@ namespace ParseValidTests
         LambdaSnail::resp::Double type;
     };
 
-    TYPED_TEST_SUITE_P(ValidRespStringTestFixture);
+    struct TestBool
+    {
+        char const* data = "#T\r\n";
+        bool expected = true;
+        LambdaSnail::resp::Boolean type;
+    };
 
-    TYPED_TEST_P(ValidRespStringTestFixture, TestMaterializeValidResp)
+    struct TestSimpleString
+    {
+        char const* data = "+INCR\r\n";
+        std::string expected = "INCR";
+        LambdaSnail::resp::SimpleString type;
+    };
+
+    TYPED_TEST_SUITE_P(RespStringTestFixture);
+
+    TYPED_TEST_P(RespStringTestFixture, TestMaterializeValidResp)
     {
         TypeParam test_data;
         LambdaSnail::resp::data_view view(test_data.data);
         auto value = view.materialize(test_data.type);
         ASSERT_TRUE(value == test_data.expected);
-
-        // typename TypeParam::first_type param1;
-        // typename TypeParam::second_type param2;
-        // ASSERT_TRUE(param1.ch == std::toupper(param2.ch));
     }
 
-    REGISTER_TYPED_TEST_SUITE_P(ValidRespStringTestFixture, TestMaterializeValidResp);
+    REGISTER_TYPED_TEST_SUITE_P(RespStringTestFixture, TestMaterializeValidResp);
 
-    using ValidRespStringTest_Types = ::testing::Types<TestInt, TestNegativeInt, TestDouble, TestNegativeDouble>;
-    INSTANTIATE_TYPED_TEST_SUITE_P(XXYYZZ,ValidRespStringTestFixture,ValidRespStringTest_Types);
+    using ValidRespStringTest_Types = ::testing::Types<TestInt, TestNegativeInt, TestDouble, TestNegativeDouble, TestBool, TestSimpleString>;
+    INSTANTIATE_TYPED_TEST_SUITE_P(TestMaterializeValidResp,RespStringTestFixture,ValidRespStringTest_Types);
 }
 
 
