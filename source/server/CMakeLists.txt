@@ -35,7 +35,7 @@ target_sources(networking
         PUBLIC
         FILE_SET CXX_MODULES FILES
         tcp_server.cpp
-        networking.cpp
+        networking.cppm
 )
 
 add_library(LambdaSnail::networking ALIAS networking)
