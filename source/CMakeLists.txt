@@ -10,6 +10,7 @@ endif()
 # Own application and modules
 
 add_subdirectory(resp)
+add_subdirectory(networking)
 add_subdirectory(server)
 
 add_executable(redis-like main.cpp)
