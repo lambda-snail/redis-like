@@ -22,4 +22,16 @@ target_sources(redis-like
 
 #redis_like_target_properties(resp)
 
-target_link_libraries(redis-like PRIVATE asio LambdaSnail::resp LambdaSnail::networking LambdaSnail::server)
+target_include_directories(redis-like PUBLIC ${readerwriterqueue_SOURCE_DIR})
+target_include_directories(redis-like PUBLIC ${concurrentqueue_SOURCE_DIR})
+
+target_link_libraries(redis-like
+        PRIVATE
+        asio
+        readerwriterqueue
+        concurrentqueue
+
+        LambdaSnail::resp
+        LambdaSnail::networking
+        LambdaSnail::server
+)

@@ -13,6 +13,8 @@ option(BUILD_TESTS "Enable testing" OFF)
 
 add_subdirectory(source)
 
+include(cmake/IncludeQueues.cmake)
+
 if(BUILD_TESTS)
     add_subdirectory(tests)
 endif()
