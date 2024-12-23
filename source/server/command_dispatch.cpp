@@ -1,11 +1,24 @@
 module;
 
-import resp;
+#include <future>
+#inlude <>
 
 export module server: resp.commands; // Move to resp module?
 
+import resp;
+
 namespace LambdaSnail::server
 {
+    export class command_dispatch
+    {
+        [[nodiscard]] std::future<std::string> process_command();
+
+    private:
+        xenium::harris_michael_hash_map m_store;
+    };
+
+
+
     export struct ping_handler
     {
         resp::data_view handle();
