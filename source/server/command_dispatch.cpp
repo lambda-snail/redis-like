@@ -1,7 +1,7 @@
 module;
 
 #include <future>
-#inlude <>
+//#inlude <>
 
 export module server: resp.commands; // Move to resp module?
 
@@ -14,7 +14,7 @@ namespace LambdaSnail::server
         [[nodiscard]] std::future<std::string> process_command();
 
     private:
-        xenium::harris_michael_hash_map m_store;
+
     };
 
 
