@@ -12,6 +12,7 @@ endif()
 add_subdirectory(resp)
 add_subdirectory(networking)
 add_subdirectory(server)
+add_subdirectory(data-structures)
 
 add_executable(redis-like main.cpp)
 target_sources(redis-like
@@ -22,4 +23,4 @@ target_sources(redis-like
 
 #redis_like_target_properties(resp)
 
-target_link_libraries(redis-like PRIVATE asio LambdaSnail::resp LambdaSnail::networking LambdaSnail::server)
+target_link_libraries(redis-like PRIVATE asio LambdaSnail::resp LambdaSnail::networking LambdaSnail::server LambdaSnail::data-structures)
