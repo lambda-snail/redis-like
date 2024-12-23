@@ -13,7 +13,7 @@ option(BUILD_TESTS "Enable testing" OFF)
 
 add_subdirectory(source)
 
-include(cmake/IncludeQueues.cmake)
+include(cmake/IncludeMoodycamel.cmake)
 
 if(BUILD_TESTS)
     add_subdirectory(tests)
