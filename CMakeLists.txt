@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.29)
 
 project(
     redis_like
-    VERSION "0.0.0"
+    VERSION "0.1.0"
     LANGUAGES CXX
 )
 
@@ -14,6 +14,7 @@ option(BUILD_TESTS "Enable testing" OFF)
 add_subdirectory(source)
 
 include(cmake/IncludeMoodycamel.cmake)
+include(cmake/IncludeBoost.cmake)
 
 if(BUILD_TESTS)
     add_subdirectory(tests)

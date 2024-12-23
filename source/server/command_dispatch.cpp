@@ -1,7 +1,8 @@
 module;
 
 #include <future>
-//#inlude <>
+
+#include "boost/unordered/concurrent_flat_map.hpp"
 
 export module server: resp.commands; // Move to resp module?
 
@@ -14,7 +15,7 @@ namespace LambdaSnail::server
         [[nodiscard]] std::future<std::string> process_command();
 
     private:
-
+        boost::concurrent_flat_map<std::string, int> m_store{};
     };
 
 

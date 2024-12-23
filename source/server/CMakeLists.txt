@@ -1,3 +1,5 @@
+#find_package(Boost 1.83 REQUIRED)
+
 add_library(server)
 target_sources(server
         PUBLIC
@@ -6,6 +8,13 @@ target_sources(server
         command_dispatch.cpp
 )
 
+get_cmake_property(_variableNames VARIABLES)
+list (SORT _variableNames)
+foreach (_variableName ${_variableNames})
+    message(STATUS "${_variableName}=${${_variableName}}")
+endforeach()
+
 add_library(LambdaSnail::server ALIAS server)
 
-target_link_libraries(server PRIVATE LambdaSnail::resp)
+#target_include_directories(server PRIVATE ${Boost_INCLUDE_DIR})
+target_link_libraries(server PRIVATE LambdaSnail::resp Boost::unordered) #${Boost_HEADERS_LIBRARY})
