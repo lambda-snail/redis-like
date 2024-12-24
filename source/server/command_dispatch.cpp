@@ -1,9 +1,11 @@
 module;
 
 #include <future>
+#include <map>
 #include <thread>
 
 #include "boost/unordered/concurrent_flat_map.hpp"
+#include "boost/unordered/unordered_flat_map.hpp"
 
 export module server: resp.commands; // Move to resp module?
 
@@ -17,7 +19,9 @@ namespace LambdaSnail::server
         [[nodiscard]] std::future<std::string> process_command(resp::data_view message);
 
     private:
-        //boost::concurrent_flat_map<std::string, int> m_store{};
+        //boost::concurrent_flat_map<int, int> m_store{};
+        //boost::unordered_flat_map<int, int> m;
+        std::map<std::string, std::string> m_store{};
     };
 
 
@@ -60,6 +64,30 @@ std::future<std::string> LambdaSnail::server::command_dispatch::process_command(
             // Hack to produce bulk string
             response = "$" + std::to_string(response.size()) + "\r\n" + response;
             //response = "+" + response;
+        }
+        else if(_1 == "GET")
+        {
+            auto const key = request[1].materialize(resp::BulkString{});
+            auto const it = m_store.find(std::string(key.begin(), key.end()));
+            if(it != m_store.end())
+            {
+                response = it->second;
+            }
+            else
+            {
+                response = "_\r\n";
+            }
+        }
+    }
+    else if(request.size() == 3)
+    {
+        auto _1 = request[0].materialize(resp::BulkString{});
+        if(_1 == "SET")
+        {
+            auto const key = request[1].materialize(resp::BulkString{});
+            auto const value = request[2].value; //request[2].materialize(resp::BulkString{});
+            m_store.emplace(std::string(key.begin(), key.end()), std::string(value.begin(), value.end()));
+            response = "+OK\r\n";
         }
     }
 

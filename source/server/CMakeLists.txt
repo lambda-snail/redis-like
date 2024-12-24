@@ -17,4 +17,4 @@ endforeach()
 add_library(LambdaSnail::server ALIAS server)
 
 #target_include_directories(server PRIVATE ${Boost_INCLUDE_DIR})
-target_link_libraries(server PRIVATE LambdaSnail::resp Boost::unordered) #${Boost_HEADERS_LIBRARY})
+target_link_libraries(server PRIVATE LambdaSnail::resp Boost::unordered Boost::core) #${Boost_HEADERS_LIBRARY})

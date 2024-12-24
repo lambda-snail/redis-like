@@ -14,7 +14,7 @@ FetchContent_Declare(
         GIT_TAG boost-1.84.0
 )
 
-set(BOOST_INCLUDE_LIBRARIES unordered)
+set(BOOST_INCLUDE_LIBRARIES unordered core)
 FetchContent_MakeAvailable(Boost)
 
 #add_subdirectory(${boost_unordered_SOURCE_DIR} EXCLUDE_FROM_ALL)
