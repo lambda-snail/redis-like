@@ -7,6 +7,7 @@ export module main;
 
 import networking;
 import resp;
+import server;
 
 void materialize_and_print_array(std::string_view msg)
 {
@@ -50,8 +51,10 @@ int main()
 
     // materialize_and_print<LambdaSnail::resp::BulkString>("$4\r\nINCR\r\n");
 
+    LambdaSnail::server::command_dispatch dispatch;
+
     runner runner;
-    runner.run(6379);
+    runner.run(6379, dispatch);
 
     return 0;
 }

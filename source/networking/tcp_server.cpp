@@ -10,7 +10,6 @@ module;
 
 export module networking :resp.tcp_server;
 
-//import <iostream>;
 import server;
 import resp;
 
@@ -19,9 +18,9 @@ class tcp_connection : public std::enable_shared_from_this<tcp_connection>
 public:
     typedef std::shared_ptr<tcp_connection> connection_ptr;
 
-    static connection_ptr create(asio::io_context &io_context)
+    static connection_ptr create(asio::io_context &io_context, LambdaSnail::server::command_dispatch& dispatch)
     {
-        return connection_ptr(new tcp_connection(io_context));
+        return connection_ptr(new tcp_connection(io_context, dispatch));
     }
 
     asio::ip::tcp::socket& get_socket()
@@ -61,35 +60,9 @@ private:
     {
         LambdaSnail::resp::data_view resp_data(std::string_view(m_buffer.begin(), m_buffer.end()));
 
-        auto request = resp_data.materialize(LambdaSnail::resp::Array{});
-
-        // Ugly hard coding
-        std::string response;
-        if(request.size() == 1 and request[0].type == LambdaSnail::resp::data_type::BulkString)
-        {
-            auto _1 = request[0].materialize(LambdaSnail::resp::BulkString{});
-            if(_1 == "PING")
-            {
-                LambdaSnail::server::ping_handler cmd;
-                response = cmd.handle().value;
-            }
-        }
-        else if(request.size() == 2)
-        {
-            auto _1 = request[0].materialize(LambdaSnail::resp::BulkString{});
-            if(_1 == "ECHO")
-            {
-                LambdaSnail::server::echo_handler cmd;
-                auto const _2 = cmd.handle(request[1]).materialize(LambdaSnail::resp::BulkString{});
-                response = _2;
-
-                // Hack to produce bulk string
-                response = "$" + std::to_string(response.size()) + "\r\n" + response;
-                //response = "+" + response;
-            }
-        }
-
-        response += "\r\n";
+        std::future<std::string> response_f = m_dispatch.process_command(resp_data);
+        response_f.wait();
+        auto response = response_f.get();
 
         this->m_data.insert(this->m_data.begin(), response.begin(), response.end());
 
@@ -100,7 +73,7 @@ private:
               });
     }
 
-    explicit tcp_connection(asio::io_context &io_context) : m_socket(io_context) { }
+    explicit tcp_connection(asio::io_context &io_context, LambdaSnail::server::command_dispatch& dispatch) : m_dispatch(dispatch), m_socket(io_context) { }
 
     void handle_write(std::error_code const &ec, size_t bytes)
     {
@@ -115,6 +88,7 @@ private:
         }
     }
 
+    LambdaSnail::server::command_dispatch& m_dispatch;
     asio::ip::tcp::socket m_socket;
 
     std::vector<char> m_data{};
@@ -124,8 +98,8 @@ private:
 class tcp_server
 {
 public:
-    explicit tcp_server(asio::io_context& context, uint16_t const port)
-        : m_asio_context(context), m_acceptor(context, asio::ip::tcp::endpoint(asio::ip::tcp::v4(), port))
+    explicit tcp_server(asio::io_context& context, uint16_t const port, LambdaSnail::server::command_dispatch& dispatch)
+        : m_dispatch(dispatch), m_asio_context(context), m_acceptor(context, asio::ip::tcp::endpoint(asio::ip::tcp::v4(), port))
     {
         start_accept();
     }
@@ -134,7 +108,7 @@ private:
     void start_accept()
     {
         tcp_connection::connection_ptr new_connection =
-                tcp_connection::create(m_asio_context);
+                tcp_connection::create(m_asio_context, m_dispatch);
 
         m_acceptor.async_accept(new_connection->get_socket(),
             [=, this](asio::error_code ec)
@@ -155,6 +129,8 @@ private:
 
         start_accept();
     }
+
+    LambdaSnail::server::command_dispatch& m_dispatch;
 
     asio::io_context& m_asio_context;
     asio::ip::tcp::acceptor m_acceptor;
@@ -194,12 +170,12 @@ static constexpr bool get_environment_value(std::string_view var_string, char** 
 export class runner
 {
 public:
-    void run(uint16_t port)
+    void run(uint16_t port, LambdaSnail::server::command_dispatch& dispatch)
     {
         try
         {
             asio::io_context context;
-            tcp_server server(context, port);
+            tcp_server server(context, port, dispatch);
             context.run();
         } catch (std::exception &e)
         {
