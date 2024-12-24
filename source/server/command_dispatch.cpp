@@ -2,6 +2,7 @@ module;
 
 #include <future>
 #include <map>
+#include <shared_mutex>
 #include <thread>
 
 #include "boost/unordered/concurrent_flat_map.hpp"
@@ -21,6 +22,7 @@ namespace LambdaSnail::server
     private:
         //boost::concurrent_flat_map<int, int> m_store{};
         //boost::unordered_flat_map<int, int> m;
+        mutable std::shared_mutex mutex{};
         std::map<std::string, std::string> m_store{};
     };
 
@@ -67,6 +69,7 @@ std::future<std::string> LambdaSnail::server::command_dispatch::process_command(
         }
         else if(_1 == "GET")
         {
+            auto lock = std::shared_lock{mutex};
             auto const key = request[1].materialize(resp::BulkString{});
             auto const it = m_store.find(std::string(key.begin(), key.end()));
             if(it != m_store.end())
@@ -84,6 +87,7 @@ std::future<std::string> LambdaSnail::server::command_dispatch::process_command(
         auto _1 = request[0].materialize(resp::BulkString{});
         if(_1 == "SET")
         {
+            auto lock = std::unique_lock{mutex};
             auto const key = request[1].materialize(resp::BulkString{});
             auto const value = request[2].value; //request[2].materialize(resp::BulkString{});
             m_store.emplace(std::string(key.begin(), key.end()), std::string(value.begin(), value.end()));
