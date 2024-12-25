@@ -1,12 +1,14 @@
 module;
 
 #include <future>
-#include <map>
+//#include <map>
 #include <shared_mutex>
 #include <thread>
 
-#include "boost/unordered/concurrent_flat_map.hpp"
-#include "boost/unordered/unordered_flat_map.hpp"
+#include "libcuckoo/cuckoohash_map.hh"
+
+// #include "boost/unordered/concurrent_flat_map.hpp"
+// #include "boost/unordered/unordered_flat_map.hpp"
 
 export module server: resp.commands; // Move to resp module?
 
@@ -20,10 +22,10 @@ namespace LambdaSnail::server
         [[nodiscard]] std::future<std::string> process_command(resp::data_view message);
 
     private:
-        //boost::concurrent_flat_map<int, int> m_store{};
-        //boost::unordered_flat_map<int, int> m;
-        mutable std::shared_mutex mutex{};
-        std::map<std::string, std::string> m_store{};
+        //mutable std::shared_mutex mutex{};
+        //std::map<std::string, std::string> m_store{};
+        libcuckoo::cuckoohash_map<std::string_view, std::string> m_store{1000};
+        //std::hash<std::string_view> m_hash{};
     };
 
     export struct ping_handler
@@ -67,12 +69,21 @@ std::future<std::string> LambdaSnail::server::command_dispatch::process_command(
         }
         else if(_1 == "GET")
         {
-            auto lock = std::shared_lock{mutex};
+            //auto lock = std::shared_lock{mutex};
             auto const key = request[1].materialize(resp::BulkString{});
-            auto const it = m_store.find(std::string(key.begin(), key.end()));
-            if(it != m_store.end())
+            std::string value;
+            // auto const it = m_store.find(std::string(key.begin(), key.end()));
+            // if(it != m_store.end())
+            // {
+            //     response = it->second;
+            // }
+            // else
+            // {
+            //     response = "_\r\n";
+            // }
+            if(m_store.find(key, value))
             {
-                response = it->second;
+                response = value;
             }
             else
             {
@@ -85,10 +96,11 @@ std::future<std::string> LambdaSnail::server::command_dispatch::process_command(
         auto _1 = request[0].materialize(resp::BulkString{});
         if(_1 == "SET")
         {
-            auto lock = std::unique_lock{mutex};
+            //auto lock = std::unique_lock{mutex};
             auto const key = request[1].materialize(resp::BulkString{});
             auto const value = request[2].value; //request[2].materialize(resp::BulkString{});
-            m_store.emplace(std::string(key.begin(), key.end()), std::string(value.begin(), value.end()));
+            //m_store.emplace(std::string(key.begin(), key.end()), std::string(value.begin(), value.end()));
+            m_store.insert_or_assign(key, value);
             response = "+OK\r\n";
         }
     }

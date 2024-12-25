@@ -33,7 +33,7 @@ endif()
 add_subdirectory(source)
 
 include(cmake/IncludeMoodycamel.cmake)
-include(cmake/IncludeBoost.cmake)
+include(cmake/IncludeLibcuckoo.cmake)
 
 if(BUILD_TESTS)
     add_subdirectory(tests)
