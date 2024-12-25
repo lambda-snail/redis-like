@@ -1,12 +1,10 @@
 module;
 
-#include <iostream>
-//#include <ranges>
-//#include <string_view>
-
 #include <asio.hpp>
 #include <asio/io_context.hpp>
 #include <asio/ts/internet.hpp>
+
+#include <iostream>
 
 export module networking :resp.tcp_server;
 
@@ -35,15 +33,15 @@ public:
         {
             if (not e)
             {
-                std::cout << std::endl << std::format(
-                    "[Connection] Bytes available for reading: {}", length) << std::endl;
+                // std::cout << std::endl << std::format(
+                //     "[Connection] Bytes available for reading: {}", length) << std::endl;
 
                 // this_->m_data.insert(this_->m_data.begin(), this_->m_buffer.begin(), this_->m_buffer.end());
 
                 this_->handle_command(length);
             } else if (e != asio::error::eof)
             {
-                std::clog << std::format("Handler encountered error: {}", e.message());
+                std::cerr << std::format("Handler encountered error: {}", e.message());
             } else
             {
                 //this_->handle_command();
@@ -53,7 +51,7 @@ public:
 
     ~tcp_connection()
     {
-        std::clog << "[Connection] Destroyed" << std::endl;
+        //std::clog << "[Connection] Destroyed" << std::endl;
     }
 private:
     void handle_command(size_t length)
@@ -79,12 +77,12 @@ private:
     {
         if (not ec)
         {
-            std::clog << "[Connection] Wrote " << bytes << " bytes" << std::endl;
+            // std::clog << "[Connection] Wrote " << bytes << " bytes" << std::endl;
             //read_request();
         }
         else if (ec != asio::error::eof)
         {
-            std::clog << "[Connection] Error when establishing connection: " << ec.message() << std::endl;
+            std::cerr << "[Connection] Error when establishing connection: " << ec.message() << std::endl;
         }
     }
 
@@ -119,12 +117,13 @@ private:
 
     void handle_accept(tcp_connection::connection_ptr const &new_connection, std::error_code const &ec)
     {
-        if (!ec)
+        if (not ec)
         {
             new_connection->read_request();
-        } else
+        }
+        else
         {
-            std::clog << "[Server] Error when establishing connection: " << ec.message() << std::endl;
+            std::cerr << "[Server] Error when establishing connection: " << ec.message() << std::endl;
         }
 
         start_accept();
@@ -177,7 +176,8 @@ public:
             asio::io_context context;
             tcp_server server(context, port, dispatch);
             context.run();
-        } catch (std::exception &e)
+        }
+        catch (std::exception &e)
         {
             std::cerr << e.what() << std::endl;
         }

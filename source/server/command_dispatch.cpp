@@ -26,8 +26,6 @@ namespace LambdaSnail::server
         std::map<std::string, std::string> m_store{};
     };
 
-
-
     export struct ping_handler
     {
         resp::data_view handle();
@@ -41,7 +39,7 @@ namespace LambdaSnail::server
 
 std::future<std::string> LambdaSnail::server::command_dispatch::process_command(resp::data_view message)
 {
-    auto request = message.materialize(LambdaSnail::resp::Array{});
+    auto request = message.materialize(resp::Array{});
 
     // Ugly hard coding
     std::string response;
