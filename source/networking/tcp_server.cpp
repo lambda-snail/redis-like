@@ -62,9 +62,7 @@ private:
         response_f.wait();
         auto response = response_f.get();
 
-        this->m_data.insert(this->m_data.begin(), response.begin(), response.end());
-
-        asio::async_write(m_socket, asio::buffer(m_data),
+        asio::async_write(m_socket, asio::buffer(response),
           [this_ = shared_from_this()](asio::error_code ec, size_t length)
               {
                   this_->handle_write(ec, length);
@@ -89,7 +87,6 @@ private:
     LambdaSnail::server::command_dispatch& m_dispatch;
     asio::ip::tcp::socket m_socket;
 
-    std::vector<char> m_data{};
     std::array<char, 10 * 1024> m_buffer{};
 };
 
