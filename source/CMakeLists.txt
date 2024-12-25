@@ -1,6 +1,7 @@
 # Own application and modules
 
 add_subdirectory(resp)
+add_subdirectory(memory)
 add_subdirectory(networking)
 add_subdirectory(server)
 
