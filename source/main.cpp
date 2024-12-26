@@ -5,6 +5,7 @@ module;
 
 export module main;
 
+import memory;
 import networking;
 import resp;
 import server;
@@ -53,7 +54,7 @@ int main()
 
     LambdaSnail::server::command_dispatch dispatch;
 
-    runner runner;
+    runner<LambdaSnail::memory::buffer_allocator<1024>> runner;
     runner.run(6379, dispatch);
 
     return 0;

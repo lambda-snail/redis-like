@@ -8,17 +8,19 @@ module;
 
 export module networking :resp.tcp_server;
 
+import memory;
 import server;
 import resp;
 
-class tcp_connection : public std::enable_shared_from_this<tcp_connection>
+template<typename Allocator>
+class tcp_connection : public std::enable_shared_from_this<tcp_connection<Allocator>>
 {
 public:
     typedef std::shared_ptr<tcp_connection> connection_ptr;
 
-    static connection_ptr create(asio::io_context &io_context, LambdaSnail::server::command_dispatch& dispatch)
+    static connection_ptr create(asio::io_context &io_context, LambdaSnail::server::command_dispatch& dispatch, Allocator& allocator)
     {
-        return connection_ptr(new tcp_connection(io_context, dispatch));
+        return connection_ptr(new tcp_connection(io_context, dispatch, allocator));
     }
 
     asio::ip::tcp::socket& get_socket()
@@ -29,7 +31,7 @@ public:
     void read_request()
     {
         m_socket.async_read_some(asio::buffer(m_buffer.data(), m_buffer.size()),
-        [this_ = shared_from_this()](std::error_code const e, size_t length)
+        [this_ = this->shared_from_this()](std::error_code const e, size_t length)
         {
             if (not e)
             {
@@ -51,6 +53,7 @@ public:
 
     ~tcp_connection()
     {
+        m_allocator.deallocate(&m_buffer, m_buffer.size());
         //std::clog << "[Connection] Destroyed" << std::endl;
     }
 private:
@@ -63,13 +66,19 @@ private:
         auto response = response_f.get();
 
         asio::async_write(m_socket, asio::buffer(response),
-          [this_ = shared_from_this()](asio::error_code ec, size_t length)
+          [this_ = this->shared_from_this()](asio::error_code ec, size_t length)
               {
                   this_->handle_write(ec, length);
               });
     }
 
-    explicit tcp_connection(asio::io_context &io_context, LambdaSnail::server::command_dispatch& dispatch) : m_dispatch(dispatch), m_socket(io_context) { }
+    explicit tcp_connection(asio::io_context &io_context, LambdaSnail::server::command_dispatch& dispatch, Allocator& allocator) : m_dispatch(dispatch), m_socket(io_context), m_allocator(allocator), m_buffer{ *allocator.allocate(1024) }
+    {
+        //std::array<char, 1024>& buffer
+        // TODO: Hard-coded for now
+        //std::array<char, 1024ul>* m_buffer = allocator.allocate(1024); // std::allocator_traits<Allocator>::allocate(allocator, 1024);
+        //m_buffer = *allocator.allocate(1024); // std::allocator_traits<Allocator>::allocate(allocator, 1024);
+    }
 
     void handle_write(std::error_code const &ec, size_t bytes)
     {
@@ -84,12 +93,15 @@ private:
         }
     }
 
+    Allocator& m_allocator;
     LambdaSnail::server::command_dispatch& m_dispatch;
     asio::ip::tcp::socket m_socket;
 
-    std::array<char, 10 * 1024> m_buffer{};
+    //std::array<char, 10 * 1024> m_buffer{};
+    std::array<char, 1024>& m_buffer;
 };
 
+template<typename Allocator = std::allocator<void>>
 class tcp_server
 {
 public:
@@ -102,8 +114,8 @@ public:
 private:
     void start_accept()
     {
-        tcp_connection::connection_ptr new_connection =
-                tcp_connection::create(m_asio_context, m_dispatch);
+        typename tcp_connection<Allocator>::connection_ptr new_connection =
+                tcp_connection<Allocator>::create(m_asio_context, m_dispatch, allocator);
 
         m_acceptor.async_accept(new_connection->get_socket(),
             [=, this](asio::error_code ec)
@@ -112,7 +124,7 @@ private:
             });
     }
 
-    void handle_accept(tcp_connection::connection_ptr const &new_connection, std::error_code const &ec)
+    void handle_accept(tcp_connection<Allocator>::connection_ptr const &new_connection, std::error_code const &ec)
     {
         if (not ec)
         {
@@ -127,12 +139,12 @@ private:
     }
 
     LambdaSnail::server::command_dispatch& m_dispatch;
+    //typename std::allocator_traits<Allocator>::allocator_type allocator{};
+    Allocator allocator{};
 
     asio::io_context& m_asio_context;
     asio::ip::tcp::acceptor m_acceptor;
 };
-
-static constexpr std::string_view custom_handler_port_str = "FUNCTIONS_CUSTOMHANDLER_PORT=";
 
 /**
  * Extracts the value of an environment variable with a numeric value.
@@ -163,7 +175,8 @@ static constexpr bool get_environment_value(std::string_view var_string, char** 
 };
 
 // TODO: Move this out from here
-export class runner
+export template<typename Allocator = std::allocator<void>>
+class runner
 {
 public:
     void run(uint16_t port, LambdaSnail::server::command_dispatch& dispatch)
@@ -171,7 +184,7 @@ public:
         try
         {
             asio::io_context context;
-            tcp_server server(context, port, dispatch);
+            tcp_server<Allocator> server(context, port, dispatch);
             context.run();
         }
         catch (std::exception &e)
