@@ -54,8 +54,10 @@ int main()
 
     LambdaSnail::server::command_dispatch dispatch;
 
-    runner<LambdaSnail::memory::buffer_allocator<1024>> runner;
-    runner.run(6379, dispatch);
+    LambdaSnail::memory::buffer_pool buffer_pool{};
+
+    runner runner;
+    runner.run(6379, dispatch, buffer_pool);
 
     return 0;
 }

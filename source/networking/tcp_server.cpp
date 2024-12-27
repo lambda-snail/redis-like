@@ -12,15 +12,14 @@ import memory;
 import server;
 import resp;
 
-template<typename Allocator>
-class tcp_connection : public std::enable_shared_from_this<tcp_connection<Allocator>>
+class tcp_connection : public std::enable_shared_from_this<tcp_connection>
 {
 public:
     typedef std::shared_ptr<tcp_connection> connection_ptr;
 
-    static connection_ptr create(asio::io_context &io_context, LambdaSnail::server::command_dispatch& dispatch, Allocator& allocator)
+    static connection_ptr create(asio::io_context &io_context, LambdaSnail::server::command_dispatch& dispatch, LambdaSnail::memory::buffer_pool& buffer_pool)
     {
-        return connection_ptr(new tcp_connection(io_context, dispatch, allocator));
+        return connection_ptr(new tcp_connection(io_context, dispatch, buffer_pool));
     }
 
     asio::ip::tcp::socket& get_socket()
@@ -30,7 +29,7 @@ public:
 
     void read_request()
     {
-        m_socket.async_read_some(asio::buffer(m_buffer.data(), m_buffer.size()),
+        m_socket.async_read_some(asio::buffer(m_buffer.buffer, m_buffer.size),
         [this_ = this->shared_from_this()](std::error_code const e, size_t length)
         {
             if (not e)
@@ -53,13 +52,14 @@ public:
 
     ~tcp_connection()
     {
-        m_allocator.deallocate(&m_buffer, m_buffer.size());
+        m_buffer_pool.release_buffer(m_buffer.buffer);
+        //m_allocator.deallocate(&m_buffer, m_buffer.size());
         //std::clog << "[Connection] Destroyed" << std::endl;
     }
 private:
     void handle_command(size_t length)
     {
-        LambdaSnail::resp::data_view resp_data(std::string_view(m_buffer.begin(), m_buffer.end()));
+        LambdaSnail::resp::data_view resp_data(std::string_view(m_buffer.buffer, m_buffer.size));
 
         std::future<std::string> response_f = m_dispatch.process_command(resp_data);
         response_f.wait();
@@ -72,12 +72,13 @@ private:
               });
     }
 
-    explicit tcp_connection(asio::io_context &io_context, LambdaSnail::server::command_dispatch& dispatch, Allocator& allocator) : m_dispatch(dispatch), m_socket(io_context), m_allocator(allocator), m_buffer{ *allocator.allocate(1024) }
+    explicit tcp_connection(asio::io_context &io_context, LambdaSnail::server::command_dispatch& dispatch, LambdaSnail::memory::buffer_pool& buffer_pool) : m_dispatch(dispatch), m_socket(io_context), m_buffer_pool(buffer_pool), m_buffer{}
     {
         //std::array<char, 1024>& buffer
         // TODO: Hard-coded for now
         //std::array<char, 1024ul>* m_buffer = allocator.allocate(1024); // std::allocator_traits<Allocator>::allocate(allocator, 1024);
         //m_buffer = *allocator.allocate(1024); // std::allocator_traits<Allocator>::allocate(allocator, 1024);
+        m_buffer = m_buffer_pool.request_buffer(1024);
     }
 
     void handle_write(std::error_code const &ec, size_t bytes)
@@ -93,20 +94,23 @@ private:
         }
     }
 
-    Allocator& m_allocator;
+    LambdaSnail::memory::buffer_pool& m_buffer_pool;
     LambdaSnail::server::command_dispatch& m_dispatch;
     asio::ip::tcp::socket m_socket;
 
     //std::array<char, 10 * 1024> m_buffer{};
-    std::array<char, 1024>& m_buffer;
+    //std::array<char, 1024>& m_buffer;
+    LambdaSnail::memory::buffer_info m_buffer;
 };
 
-template<typename Allocator = std::allocator<void>>
 class tcp_server
 {
 public:
-    explicit tcp_server(asio::io_context& context, uint16_t const port, LambdaSnail::server::command_dispatch& dispatch)
-        : m_dispatch(dispatch), m_asio_context(context), m_acceptor(context, asio::ip::tcp::endpoint(asio::ip::tcp::v4(), port))
+    explicit tcp_server(asio::io_context& context, uint16_t const port, LambdaSnail::server::command_dispatch& dispatch, LambdaSnail::memory::buffer_pool& buffer_pool)
+        :   m_dispatch(dispatch),
+            m_buffers(buffer_pool),
+            m_asio_context(context),
+            m_acceptor(context, asio::ip::tcp::endpoint(asio::ip::tcp::v4(), port))
     {
         start_accept();
     }
@@ -114,8 +118,8 @@ public:
 private:
     void start_accept()
     {
-        typename tcp_connection<Allocator>::connection_ptr new_connection =
-                tcp_connection<Allocator>::create(m_asio_context, m_dispatch, allocator);
+        typename tcp_connection::connection_ptr new_connection =
+                tcp_connection::create(m_asio_context, m_dispatch, m_buffers);
 
         m_acceptor.async_accept(new_connection->get_socket(),
             [=, this](asio::error_code ec)
@@ -124,7 +128,7 @@ private:
             });
     }
 
-    void handle_accept(tcp_connection<Allocator>::connection_ptr const &new_connection, std::error_code const &ec)
+    void handle_accept(tcp_connection::connection_ptr const &new_connection, std::error_code const &ec)
     {
         if (not ec)
         {
@@ -140,7 +144,7 @@ private:
 
     LambdaSnail::server::command_dispatch& m_dispatch;
     //typename std::allocator_traits<Allocator>::allocator_type allocator{};
-    Allocator allocator{};
+    LambdaSnail::memory::buffer_pool& m_buffers;
 
     asio::io_context& m_asio_context;
     asio::ip::tcp::acceptor m_acceptor;
@@ -175,16 +179,15 @@ static constexpr bool get_environment_value(std::string_view var_string, char** 
 };
 
 // TODO: Move this out from here
-export template<typename Allocator = std::allocator<void>>
-class runner
+export class runner
 {
 public:
-    void run(uint16_t port, LambdaSnail::server::command_dispatch& dispatch)
+    void run(uint16_t port, LambdaSnail::server::command_dispatch& dispatch, LambdaSnail::memory::buffer_pool& buffer_pool)
     {
         try
         {
             asio::io_context context;
-            tcp_server<Allocator> server(context, port, dispatch);
+            tcp_server server(context, port, dispatch, buffer_pool);
             context.run();
         }
         catch (std::exception &e)
