@@ -52,17 +52,20 @@ LambdaSnail::memory::buffer_info
 LambdaSnail::memory::buffer_pool::request_buffer(size_t size) noexcept
 {
     auto lock = std::unique_lock{ m_mutex };
-    auto it = std::ranges::find_if(m_buffers.begin(), m_buffers.end(), [](auto const& alloc){ return not alloc.isAllocated; });
+    auto const it = std::ranges::find_if(m_buffers.begin(), m_buffers.end(),
+        [](auto const& alloc){ return not alloc.isAllocated; });
     if(it == m_buffers.end())
     {
         return { .buffer = nullptr, .size = 0 };;
     }
 
-    allocation_information<1024>& free_buffer = *it;
-    free_buffer.isAllocated = true;
+    auto& [buffer, isAllocated, index] = *it;
+
+    assert(not isAllocated);
+    isAllocated = true;
 
     //std::cout << "Allocate: " << &free_buffer.buffer << std::endl;
-    return { .buffer = free_buffer.buffer.data(), .size = free_buffer.buffer.size() };
+    return { .buffer = buffer.data(), .size = buffer.size() };
 }
 
 void LambdaSnail::memory::buffer_pool::release_buffer(char *buffer) noexcept
