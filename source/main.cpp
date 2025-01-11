@@ -37,18 +37,13 @@ void materialize_and_print(std::string_view msg)
 
 int main()
 {
-    using ls_string = std::basic_string<char, std::char_traits<char>, LambdaSnail::memory::buffer_allocator<char>>;
-
     LambdaSnail::memory::buffer_pool buffer_pool{};
     LambdaSnail::memory::buffer_allocator<char> allocator{buffer_pool};
 
-    ls_string str(allocator);
-    str = "saaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    LambdaSnail::server::command_dispatch dispatch{allocator};
 
-    // LambdaSnail::server::command_dispatch dispatch{allocator};
-    //
-    // runner runner;
-    // runner.run(6379, dispatch, buffer_pool);
+    runner runner;
+    runner.run(6379, dispatch, buffer_pool);
 
     return 0;
 }
