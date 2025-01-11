@@ -9,6 +9,7 @@ project(
 set(CMAKE_CXX_SCAN_FOR_MODULES 1)
 set(CMAKE_CXX_STANDARD 23)
 
+option(USE_TRACY "Enable tracing" OFF)
 option(BUILD_TESTS "Enable testing" OFF)
 option(SANITIZE_ADDRESS "Use address sanitizer" OFF)
 option(SANITIZE_MEMORY "Use memory sanitizer" OFF)
@@ -38,3 +39,5 @@ include(cmake/IncludeLibcuckoo.cmake)
 if(BUILD_TESTS)
     add_subdirectory(tests)
 endif()
+
+add_subdirectory(external)

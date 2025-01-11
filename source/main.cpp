@@ -2,6 +2,7 @@ module;
 
 #include <iostream>
 #include <string>
+#include <tracy/Tracy.hpp>
 
 export module main;
 
@@ -12,6 +13,8 @@ import server;
 
 int main()
 {
+    ZoneScoped;
+
     LambdaSnail::memory::buffer_pool buffer_pool{};
     LambdaSnail::memory::buffer_allocator<char> allocator{buffer_pool};
 
