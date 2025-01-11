@@ -37,27 +37,18 @@ void materialize_and_print(std::string_view msg)
 
 int main()
 {
-    // LambdaSnail::resp::data_view data("#t\r\n");
-    // auto const value = data.materialize(LambdaSnail::resp::Boolean{});
-    // std::cout << value << std::endl;
-    //
-    // materialize_and_print<LambdaSnail::resp::Integer>(":12345\r\n");
-    // materialize_and_print<LambdaSnail::resp::Integer>(":-12345\r\n");
-    //
-    // materialize_and_print<LambdaSnail::resp::Double>(",12.34\r\n");
-    // materialize_and_print<LambdaSnail::resp::Double>(",-12.34\r\n");
-    //
-    // materialize_and_print("_\r\n");
-    //materialize_and_print_array("*2\r\n$4\r\nINCR\r\n+INCR\r\n");
-
-    // materialize_and_print<LambdaSnail::resp::BulkString>("$4\r\nINCR\r\n");
-
-    LambdaSnail::server::command_dispatch dispatch;
+    using ls_string = std::basic_string<char, std::char_traits<char>, LambdaSnail::memory::buffer_allocator<char>>;
 
     LambdaSnail::memory::buffer_pool buffer_pool{};
+    LambdaSnail::memory::buffer_allocator<char> allocator{buffer_pool};
 
-    runner runner;
-    runner.run(6379, dispatch, buffer_pool);
+    ls_string str(allocator);
+    str = "saaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+    // LambdaSnail::server::command_dispatch dispatch{allocator};
+    //
+    // runner runner;
+    // runner.run(6379, dispatch, buffer_pool);
 
     return 0;
 }

@@ -16,4 +16,4 @@ endforeach()
 
 add_library(LambdaSnail::server ALIAS server)
 
-target_link_libraries(server PRIVATE LambdaSnail::resp libcuckoo)
+target_link_libraries(server PRIVATE LambdaSnail::memory LambdaSnail::resp libcuckoo)

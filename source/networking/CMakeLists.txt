@@ -13,7 +13,7 @@ FetchContent_Declare(asio
 
 FetchContent_GetProperties(asio)
 if(NOT asio_POPULATED)
-    FetchContent_Populate(asio)
+    FetchContent_MakeAvailable(asio)
 endif()
 
 add_library(asio INTERFACE)

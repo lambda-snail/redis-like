@@ -1,78 +1,46 @@
 module;
 
-#include <cassert>
-//#include <iostream>
-#include <mutex>
-#include <shared_mutex>
+#include <iostream>
 #include <vector>
 
 export module memory: memory.buffer_allocator;
 
+import :memory.buffer_pool;
+
 namespace LambdaSnail::memory
 {
     export
-    template<size_t BufferSize>
+    template<typename T>
     struct buffer_allocator
     {
-        using value_type = std::array<char, BufferSize>;
+        using value_type = T;
+        using pointer_type = T*;
 
-        buffer_allocator() noexcept;
-        template <size_t U> buffer_allocator (buffer_allocator<U> const&) noexcept = delete;
+        explicit buffer_allocator(buffer_pool& buffer_pool) noexcept;
+        buffer_allocator (buffer_allocator<T> const&) noexcept = default;
         value_type* allocate (std::size_t n);
         void deallocate (value_type* p, std::size_t n);
     private:
-        template<size_t buffer_size>
-        struct allocation_information
-        {
-            std::array<char, buffer_size> buffer{};
-            bool isAllocated{false};
-            size_t index{};
-        };
-
-        std::vector<allocation_information<BufferSize>> m_buffers {};
-        std::shared_mutex m_mutex{};
+        buffer_pool& m_buffer_pool;
     };
 }
 
-template<size_t BufferSize>
-    LambdaSnail::memory::buffer_allocator<BufferSize>::buffer_allocator() noexcept
+template<typename T>
+LambdaSnail::memory::buffer_allocator<T>::buffer_allocator(buffer_pool& buffer_pool) noexcept : m_buffer_pool(buffer_pool) { }
+
+template<typename T>
+typename LambdaSnail::memory::buffer_allocator<T>::value_type*
+    LambdaSnail::memory::buffer_allocator<T>::allocate(std::size_t n)
 {
-    m_buffers.resize(BufferSize);
-    size_t index = 0;
-    for(auto& allocation : m_buffers)
-    {
-        allocation.index = index++;
-    }
+    auto const& [buffer, size] = m_buffer_pool.request_buffer(n);
+    std::cout << "Allocated buffer " << buffer << " (" << size << ") bytes" << std::endl;
+
+    return buffer;
 }
 
-template<size_t BufferSize>
-typename LambdaSnail::memory::buffer_allocator<BufferSize>::value_type*
-    LambdaSnail::memory::buffer_allocator<BufferSize>::allocate(std::size_t n)
+template<typename T>
+void LambdaSnail::memory::buffer_allocator<T>::deallocate(value_type* p, std::size_t n)
 {
-    auto lock = std::unique_lock{ m_mutex };
-    auto it = std::ranges::find_if(m_buffers.begin(), m_buffers.end(), [](auto const& alloc){ return not alloc.isAllocated; });
-    if(it == m_buffers.end())
-    {
-        return nullptr;
-    }
-
-    allocation_information<BufferSize>& free_buffer = *it;
-    free_buffer.isAllocated = true;
-
-    //std::cout << "Allocate: " << &free_buffer.buffer << std::endl;
-    return &free_buffer.buffer;
-}
-
-template<size_t BufferSize>
-void LambdaSnail::memory::buffer_allocator<BufferSize>::deallocate(value_type* p, std::size_t n)
-{
-    auto lock = std::shared_lock{m_mutex};
-    auto* allocation = reinterpret_cast<allocation_information<BufferSize>*>(p);
-
-    assert(allocation->index >= 0 and allocation->index < BufferSize);
-    assert(&m_buffers[allocation->index] == allocation);
-    assert(allocation->isAllocated);
-
-    allocation->isAllocated = false;
-    //std::cout << "Deallocate: " << p << std::endl;
+    m_buffer_pool.release_buffer(p);
+    std::cout << "Released memory " << p << std::endl;
 };

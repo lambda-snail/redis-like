@@ -16,6 +16,11 @@ namespace LambdaSnail::memory
         size_t size{};
     };
 
+    /**
+     * Pool of buffers for small to medium sizes
+     * Keep track of how many available in each bucket?
+     *
+     */
     export class buffer_pool
     {
     public:
@@ -73,7 +78,7 @@ void LambdaSnail::memory::buffer_pool::release_buffer(char *buffer) noexcept
     auto lock = std::shared_lock{m_mutex};
     auto* allocation = reinterpret_cast<allocation_information<1024>*>(buffer);
 
-    assert(allocation->index >= 0 and allocation->index < BufferSize);
+    assert(allocation->index < 1024);
     assert(&m_buffers[allocation->index] == allocation);
     assert(allocation->isAllocated);
 
