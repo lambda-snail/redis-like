@@ -20,11 +20,12 @@ namespace LambdaSnail::server
     export class command_dispatch
     {
     public:
+        //using ls_string = std::basic_string<char, std::char_traits<char>, memory::buffer_allocator<char>>;
+
         explicit command_dispatch(memory::buffer_allocator<char>& string_allocator) : m_string_allocator(string_allocator) {}
         [[nodiscard]] std::future<std::string> process_command(resp::data_view message);
 
     private:
-        using ls_string = std::basic_string<char, std::char_traits<char>, memory::buffer_allocator<char>>;
         memory::buffer_allocator<char>& m_string_allocator;
 
         libcuckoo::cuckoohash_map<std::string_view, std::string> m_store{1000};
@@ -48,7 +49,7 @@ std::future<std::string> LambdaSnail::server::command_dispatch::process_command(
     auto request = message.materialize(resp::Array{});
 
     // Ugly hard coding
-    ls_string response(m_string_allocator);
+    std::string response;
     if(request.size() == 1 and request[0].type == LambdaSnail::resp::data_type::BulkString)
     {
         auto _1 = request[0].materialize(LambdaSnail::resp::BulkString{});
