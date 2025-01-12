@@ -33,6 +33,8 @@ endif()
 
 add_subdirectory(source)
 
+add_subdirectory(external)
+
 include(cmake/IncludeMoodycamel.cmake)
 include(cmake/IncludeLibcuckoo.cmake)
 
@@ -40,4 +42,8 @@ if(BUILD_TESTS)
     add_subdirectory(tests)
 endif()
 
-add_subdirectory(external)
+if(NOT USE_TRACY)
+    set(TRACY_ENABLE OFF)
+endif()
+
+message("Tracy is: ${TRACY_ENABLE}")

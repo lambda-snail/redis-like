@@ -201,7 +201,18 @@ public:
         {
             asio::io_context context;
             tcp_server server(context, port, dispatch, buffer_pool);
-            context.run();
+            //context.run();
+
+            constexpr int8_t thread_pool_size_ = 8;
+
+            // Create a pool of threads to run the io_context.
+            std::vector<std::thread> threads;
+            for (std::size_t i = 0; i < thread_pool_size_; ++i)
+                threads.emplace_back([&]{ context.run(); });
+
+            // Wait for all threads in the pool to exit.
+            for (std::size_t i = 0; i < threads.size(); ++i)
+                threads[i].join();
         }
         catch (std::exception &e)
         {

@@ -2,6 +2,7 @@ module;
 
 #include <iostream>
 #include <string>
+
 #include <tracy/Tracy.hpp>
 
 export module main;
