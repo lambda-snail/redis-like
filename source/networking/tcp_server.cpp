@@ -205,14 +205,10 @@ public:
 
             constexpr int8_t thread_pool_size_ = 8;
 
-            // Create a pool of threads to run the io_context.
-            std::vector<std::thread> threads;
+            // See https://think-async.com/Asio/asio-1.30.2/src/examples/cpp11/http/server3/server.cpp
+            std::vector<std::jthread> threads;
             for (std::size_t i = 0; i < thread_pool_size_; ++i)
                 threads.emplace_back([&]{ context.run(); });
-
-            // Wait for all threads in the pool to exit.
-            for (std::size_t i = 0; i < threads.size(); ++i)
-                threads[i].join();
         }
         catch (std::exception &e)
         {
