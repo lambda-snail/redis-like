@@ -11,4 +11,5 @@ if(USE_TRACY)
     add_compile_definitions(TRACY_ENABLE)
 
     target_link_libraries(redis-like PUBLIC TracyClient)
+#    target_link_libraries(networking PUBLIC TracyClient)
 endif()

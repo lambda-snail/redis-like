@@ -3,8 +3,9 @@ module;
 #include <asio.hpp>
 #include <asio/io_context.hpp>
 #include <asio/ts/internet.hpp>
-
 #include <iostream>
+
+#include <tracy/Tracy.hpp>
 
 export module networking :resp.tcp_server;
 
@@ -29,6 +30,8 @@ public:
 
     void read_request()
     {
+        ZoneScoped;
+
         m_socket.async_read_some(asio::buffer(m_buffer.buffer, m_buffer.size),
         [this_ = this->shared_from_this()](std::error_code const e, size_t length)
         {
@@ -59,6 +62,8 @@ public:
 private:
     void handle_command(size_t length)
     {
+        ZoneScoped;
+
         LambdaSnail::resp::data_view resp_data(std::string_view(m_buffer.buffer, m_buffer.size));
 
         std::future<std::string> response_f = m_dispatch.process_command(resp_data);
@@ -83,6 +88,8 @@ private:
 
     void handle_write(std::error_code const &ec, size_t bytes)
     {
+        ZoneScoped;
+
         if (not ec)
         {
             // std::clog << "[Connection] Wrote " << bytes << " bytes" << std::endl;
@@ -118,6 +125,8 @@ public:
 private:
     void start_accept()
     {
+        ZoneScoped;
+
         typename tcp_connection::connection_ptr new_connection =
                 tcp_connection::create(m_asio_context, m_dispatch, m_buffers);
 
@@ -130,6 +139,8 @@ private:
 
     void handle_accept(tcp_connection::connection_ptr const &new_connection, std::error_code const &ec)
     {
+        ZoneScoped;
+
         if (not ec)
         {
             new_connection->read_request();
@@ -184,6 +195,8 @@ export class runner
 public:
     void run(uint16_t port, LambdaSnail::server::command_dispatch& dispatch, LambdaSnail::memory::buffer_pool& buffer_pool)
     {
+        ZoneScoped;
+
         try
         {
             asio::io_context context;

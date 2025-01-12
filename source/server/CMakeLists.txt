@@ -17,3 +17,9 @@ endforeach()
 add_library(LambdaSnail::server ALIAS server)
 
 target_link_libraries(server PRIVATE LambdaSnail::memory LambdaSnail::resp libcuckoo)
+
+if(USE_TRACY)
+    message("Linking with tracy: server")
+    target_link_libraries(server PUBLIC TracyClient)
+    target_include_directories(server PUBLIC ${Tracy_SOURCE_DIR}/public)
+endif()

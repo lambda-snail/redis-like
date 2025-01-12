@@ -4,6 +4,7 @@ module;
 //#include <map>
 #include <shared_mutex>
 #include <thread>
+#include <tracy/Tracy.hpp>
 
 #include "libcuckoo/cuckoohash_map.hh"
 
@@ -46,6 +47,8 @@ namespace LambdaSnail::server
 
 std::future<std::string> LambdaSnail::server::command_dispatch::process_command(resp::data_view message)
 {
+    ZoneNamed(ProcessCommand, true);
+
     auto request = message.materialize(resp::Array{});
 
     // Ugly hard coding
@@ -74,6 +77,8 @@ std::future<std::string> LambdaSnail::server::command_dispatch::process_command(
         }
         else if(_1 == "GET")
         {
+            ZoneNamed(ProcessCommandGet, true);
+
             //auto lock = std::shared_lock{mutex};
             auto const key = request[1].materialize(resp::BulkString{});
             std::string value;
@@ -101,6 +106,8 @@ std::future<std::string> LambdaSnail::server::command_dispatch::process_command(
         auto _1 = request[0].materialize(resp::BulkString{});
         if(_1 == "SET")
         {
+            ZoneNamed(ProcessCommandSet, true);
+
             //auto lock = std::unique_lock{mutex};
             auto const key = request[1].materialize(resp::BulkString{});
             auto const value = request[2].value; //request[2].materialize(resp::BulkString{});
