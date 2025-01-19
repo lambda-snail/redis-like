@@ -54,10 +54,10 @@ namespace LambdaSnail::server
         store_t& m_store;
     };
 
-    export class command_dispatch
+    export class database
     {
     public:
-        explicit command_dispatch(memory::buffer_allocator<char>& string_allocator) : m_string_allocator(string_allocator) {}
+        explicit database(memory::buffer_allocator<char>& string_allocator) : m_string_allocator(string_allocator) {}
         [[nodiscard]] std::string process_command(resp::data_view message);
 
     private:
@@ -75,7 +75,7 @@ namespace LambdaSnail::server
     };
 }
 
-std::string LambdaSnail::server::command_dispatch::process_command(resp::data_view message)
+std::string LambdaSnail::server::database::process_command(resp::data_view message)
 {
     ZoneNamed(ProcessCommand, true);
 

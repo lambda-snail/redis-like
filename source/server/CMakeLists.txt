@@ -5,7 +5,7 @@ target_sources(server
         PUBLIC
         FILE_SET CXX_MODULES FILES
         server.cppm
-        command_dispatch.cpp
+        database.cpp
 )
 
 get_cmake_property(_variableNames VARIABLES)

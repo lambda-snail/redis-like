@@ -18,7 +18,7 @@ class tcp_connection : public std::enable_shared_from_this<tcp_connection>
 public:
     typedef std::shared_ptr<tcp_connection> connection_ptr;
 
-    static connection_ptr create(asio::io_context &io_context, LambdaSnail::server::command_dispatch& dispatch, LambdaSnail::memory::buffer_pool& buffer_pool)
+    static connection_ptr create(asio::io_context &io_context, LambdaSnail::server::database& dispatch, LambdaSnail::memory::buffer_pool& buffer_pool)
     {
         return connection_ptr(new tcp_connection(io_context, dispatch, buffer_pool));
     }
@@ -74,7 +74,7 @@ private:
               });
     }
 
-    explicit tcp_connection(asio::io_context &io_context, LambdaSnail::server::command_dispatch& dispatch, LambdaSnail::memory::buffer_pool& buffer_pool) : m_dispatch(dispatch), m_socket(io_context), m_buffer_pool(buffer_pool), m_buffer{}
+    explicit tcp_connection(asio::io_context &io_context, LambdaSnail::server::database& dispatch, LambdaSnail::memory::buffer_pool& buffer_pool) : m_dispatch(dispatch), m_socket(io_context), m_buffer_pool(buffer_pool), m_buffer{}
     {
         //std::array<char, 1024>& buffer
         // TODO: Hard-coded for now
@@ -99,7 +99,7 @@ private:
     }
 
     LambdaSnail::memory::buffer_pool& m_buffer_pool;
-    LambdaSnail::server::command_dispatch& m_dispatch;
+    LambdaSnail::server::database& m_dispatch;
     asio::ip::tcp::socket m_socket;
 
     //std::array<char, 10 * 1024> m_buffer{};
@@ -110,7 +110,7 @@ private:
 class tcp_server
 {
 public:
-    explicit tcp_server(asio::io_context& context, uint16_t const port, LambdaSnail::server::command_dispatch& dispatch, LambdaSnail::memory::buffer_pool& buffer_pool)
+    explicit tcp_server(asio::io_context& context, uint16_t const port, LambdaSnail::server::database& dispatch, LambdaSnail::memory::buffer_pool& buffer_pool)
         :   m_dispatch(dispatch),
             m_buffers(buffer_pool),
             m_asio_context(context),
@@ -150,7 +150,7 @@ private:
         start_accept();
     }
 
-    LambdaSnail::server::command_dispatch& m_dispatch;
+    LambdaSnail::server::database& m_dispatch;
     //typename std::allocator_traits<Allocator>::allocator_type allocator{};
     LambdaSnail::memory::buffer_pool& m_buffers;
 
@@ -190,7 +190,7 @@ static constexpr bool get_environment_value(std::string_view var_string, char** 
 export class runner
 {
 public:
-    void run(uint16_t port, LambdaSnail::server::command_dispatch& dispatch, LambdaSnail::memory::buffer_pool& buffer_pool)
+    void run(uint16_t port, LambdaSnail::server::database& dispatch, LambdaSnail::memory::buffer_pool& buffer_pool)
     {
         ZoneScoped;
 

@@ -19,7 +19,7 @@ int main()
     LambdaSnail::memory::buffer_pool buffer_pool{};
     LambdaSnail::memory::buffer_allocator<char> allocator{buffer_pool};
 
-    LambdaSnail::server::command_dispatch dispatch{allocator};
+    LambdaSnail::server::database dispatch{allocator};
 
     runner runner;
     runner.run(6379, dispatch, buffer_pool);
