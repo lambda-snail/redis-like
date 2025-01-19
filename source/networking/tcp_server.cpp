@@ -65,11 +65,7 @@ private:
         ZoneScoped;
 
         LambdaSnail::resp::data_view resp_data(std::string_view(m_buffer.buffer, m_buffer.size));
-
-        std::future<std::string> response_f = m_dispatch.process_command(resp_data);
-        response_f.wait();
-        //std::string response = "$11\r\nHello World\r\n";// response_f.get();
-        std::string response = response_f.get();
+        std::string response = m_dispatch.process_command(resp_data);
 
         asio::async_write(m_socket, asio::buffer(response),
           [this_ = this->shared_from_this()](asio::error_code ec, size_t length)

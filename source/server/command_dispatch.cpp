@@ -57,27 +57,25 @@ namespace LambdaSnail::server
     export class command_dispatch
     {
     public:
-        //using ls_string = std::basic_string<char, std::char_traits<char>, memory::buffer_allocator<char>>;
-
         explicit command_dispatch(memory::buffer_allocator<char>& string_allocator) : m_string_allocator(string_allocator) {}
-        [[nodiscard]] std::future<std::string> process_command(resp::data_view message);
+        [[nodiscard]] std::string process_command(resp::data_view message);
 
     private:
         memory::buffer_allocator<char>& m_string_allocator;
 
         store_t m_store{1000};
 
-        std::unordered_map<std::string_view, ICommandHandler const&> m_command_map
+        std::unordered_map<std::string_view, ICommandHandler const*> m_command_map
         {
-            std::pair("PING", ping_handler{}),
-            std::pair("ECHO", echo_handler{}),
-            std::pair("GET", get_handler{ m_store }),
-            std::pair("SET", set_handler{ m_store })
+            std::pair("PING", new ping_handler),
+            std::pair("ECHO", new echo_handler),
+            std::pair("GET", new get_handler{ m_store }),
+            std::pair("SET", new set_handler{ m_store })
         };
     };
 }
 
-std::future<std::string> LambdaSnail::server::command_dispatch::process_command(resp::data_view message)
+std::string LambdaSnail::server::command_dispatch::process_command(resp::data_view message)
 {
     ZoneNamed(ProcessCommand, true);
 
@@ -85,22 +83,22 @@ std::future<std::string> LambdaSnail::server::command_dispatch::process_command(
 
     if (request.size() == 0 or request[0].type != LambdaSnail::resp::data_type::BulkString)
     {
-        return std::async(std::launch::async, []{ return std::string("-Unable to parse request\r\n"); });
+        return std::string("-Unable to parse request\r\n");
     }
 
-    return std::async(std::launch::async, [this, request]
+    auto const _1 = request[0].materialize(resp::BulkString{});
+    auto const cmd_it = m_command_map.find(_1);
+    if (cmd_it != m_command_map.end())
     {
-        auto const _1 = request[0].materialize(resp::BulkString{});
-        auto const cmd_it = m_command_map.find(_1);
-        if (cmd_it != m_command_map.end())
+        auto const* cmd = cmd_it->second;
+        if (cmd)
         {
-            auto const& cmd = cmd_it->second;
-            std::string s = cmd.execute(request);
+            std::string s = cmd->execute(request);
             return s;
         }
+    }
 
-        return std::string("-Unable to find command\r\n");;
-    });
+    return std::string("-Unable to find command\r\n");
 }
 
 std::string LambdaSnail::server::ping_handler::execute(std::vector<resp::data_view> const& args) const noexcept
