@@ -190,26 +190,43 @@ static constexpr bool get_environment_value(std::string_view var_string, char** 
 export class runner
 {
 public:
+    void shutdown()
+    {
+        m_context.stop();
+        for (auto& thread : m_thread_pool)
+        {
+            if (thread.joinable()) thread.join();
+        }
+    }
+
     void run(uint16_t port, LambdaSnail::server::database& dispatch, LambdaSnail::memory::buffer_pool& buffer_pool)
     {
         ZoneScoped;
 
         try
         {
-            asio::io_context context;
-            tcp_server server(context, port, dispatch, buffer_pool);
+            tcp_server server(m_context, port, dispatch, buffer_pool);
             //context.run();
 
-            constexpr int8_t thread_pool_size_ = 8;
-
+            //std::vector<std::jthread> m_thread_pool{};
             // See https://think-async.com/Asio/asio-1.30.2/src/examples/cpp11/http/server3/server.cpp
-            std::vector<std::jthread> threads;
             for (std::size_t i = 0; i < thread_pool_size_; ++i)
-                threads.emplace_back([&]{ context.run(); });
+                m_thread_pool.emplace_back([&]{ m_context.run(); });
+
+            for (auto& thread : m_thread_pool)
+            {
+                if (thread.joinable()) thread.join();
+            }
         }
         catch (std::exception &e)
         {
             std::cerr << e.what() << std::endl;
         }
     }
+
+private:
+    asio::io_context m_context{};
+    std::vector<std::thread> m_thread_pool{};
+
+    int8_t thread_pool_size_ = 8;
 };
