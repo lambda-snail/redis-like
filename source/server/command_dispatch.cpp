@@ -103,20 +103,25 @@ std::string LambdaSnail::server::command_dispatch::process_command(resp::data_vi
 
 std::string LambdaSnail::server::ping_handler::execute(std::vector<resp::data_view> const& args) const noexcept
 {
+    ZoneScoped;
+
     assert(args.size() == 1);
     return "+PONG\r\n";
 }
 
 std::string LambdaSnail::server::echo_handler::execute(std::vector<resp::data_view> const& args) const noexcept
 {
-    assert(args.size() == 2);
+    ZoneScoped;
 
+    assert(args.size() == 2);
     auto const str = args[1].materialize(resp::BulkString{});
     return "$" + std::to_string(str.size()) + "\r\n" + std::string(str.data(), str.size()) + "\r\n";
 }
 
 std::string LambdaSnail::server::get_handler::execute(std::vector<resp::data_view> const& args) const noexcept
 {
+    ZoneScoped;
+
     if (args.size() == 2)
     {
         auto const key = args[1].materialize(resp::BulkString{});
@@ -131,6 +136,8 @@ std::string LambdaSnail::server::get_handler::execute(std::vector<resp::data_vie
 
 std::string LambdaSnail::server::set_handler::execute(std::vector<resp::data_view> const &args) const noexcept
 {
+    ZoneScoped;
+
     if (args.size() == 3)
     {
         auto const key = args[1].materialize(resp::BulkString{});

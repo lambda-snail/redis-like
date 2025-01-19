@@ -8,3 +8,6 @@ target_sources(resp
 
 #target_link_libraries(resp PRIVATE fmt::fmt spdlog::spdlog)
 add_library(LambdaSnail::resp ALIAS resp)
+
+target_link_libraries(resp PUBLIC TracyClient)
+target_include_directories(resp PUBLIC ${Tracy_SOURCE_DIR}/public)
