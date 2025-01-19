@@ -53,7 +53,7 @@
       }
     },
     {
-      "name": "release",
+      "name": "release-sanitized",
       "displayName": "Release (Sanitized)",
       "inherits": "jetbrains-linux-base",
       "description": "Release Build with sanitizers turned on",
@@ -71,7 +71,7 @@
       "name": "release",
       "displayName": "Release",
       "inherits": "jetbrains-linux-base",
-      "description": "Release Build with sanitizers turned on",
+      "description": "Release Build",
       "binaryDir": "${sourceDir}/build/release",
       "cacheVariables": {
         "USE_TRACY": "OFF",
@@ -85,12 +85,20 @@
   ],
   "buildPresets": [
     {
+      "name": "debug",
+      "configurePreset": "debug"
+    },
+    {
       "name": "debug-tracy",
       "configurePreset": "debug-tracy"
     },
     {
       "name": "release",
       "configurePreset": "release"
+    },
+    {
+      "name": "release-sanitized",
+      "configurePreset": "release-sanitized"
     }
   ],
   "testPresets": [
