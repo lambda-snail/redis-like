@@ -67,10 +67,10 @@ namespace LambdaSnail::server
 
         std::unordered_map<std::string_view, ICommandHandler const*> m_command_map
         {
-            std::pair("PING", new ping_handler),
-            std::pair("ECHO", new echo_handler),
-            std::pair("GET", new get_handler{ m_store }),
-            std::pair("SET", new set_handler{ m_store })
+            { "PING", new ping_handler },
+            { "ECHO", new echo_handler },
+            { "GET", new get_handler{ m_store } },
+            { "SET", new set_handler{ m_store } }
         };
     };
 }
@@ -79,11 +79,11 @@ std::string LambdaSnail::server::command_dispatch::process_command(resp::data_vi
 {
     ZoneNamed(ProcessCommand, true);
 
-    auto request = message.materialize(resp::Array{});
+    auto const request = message.materialize(resp::Array{});
 
     if (request.size() == 0 or request[0].type != LambdaSnail::resp::data_type::BulkString)
     {
-        return std::string("-Unable to parse request\r\n");
+        return { "-Unable to parse request\r\n" };
     }
 
     auto const _1 = request[0].materialize(resp::BulkString{});
@@ -98,7 +98,7 @@ std::string LambdaSnail::server::command_dispatch::process_command(resp::data_vi
         }
     }
 
-    return std::string("-Unable to find command\r\n");
+    return { "-Unable to find command\r\n" };
 }
 
 std::string LambdaSnail::server::ping_handler::execute(std::vector<resp::data_view> const& args) const noexcept
