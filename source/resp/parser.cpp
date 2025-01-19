@@ -37,7 +37,7 @@ namespace LambdaSnail::resp
         constexpr explicit data_view(std::string_view message);
 
         data_type type{};
-        std::string_view value;
+        std::string_view value{};
 
         [[nodiscard]] constexpr bool is_null() const;
         [[nodiscard]] constexpr bool materialize(Boolean) const;

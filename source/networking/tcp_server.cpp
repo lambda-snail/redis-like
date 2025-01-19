@@ -68,7 +68,8 @@ private:
 
         std::future<std::string> response_f = m_dispatch.process_command(resp_data);
         response_f.wait();
-        auto response = response_f.get();
+        //std::string response = "$11\r\nHello World\r\n";// response_f.get();
+        std::string response = response_f.get();
 
         asio::async_write(m_socket, asio::buffer(response),
           [this_ = this->shared_from_this()](asio::error_code ec, size_t length)

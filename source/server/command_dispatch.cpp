@@ -1,15 +1,13 @@
 module;
 
 #include <future>
-//#include <map>
 #include <shared_mutex>
 #include <thread>
+#include <unordered_map>
+
 #include "libcuckoo/cuckoohash_map.hh"
 
 #include <tracy/Tracy.hpp>
-
-// #include "boost/unordered/concurrent_flat_map.hpp"
-// #include "boost/unordered/unordered_flat_map.hpp"
 
 export module server: resp.commands; // Move to resp module?
 
@@ -18,6 +16,44 @@ import resp;
 
 namespace LambdaSnail::server
 {
+    using store_t = libcuckoo::cuckoohash_map<std::string_view, std::string>;
+
+    struct ICommandHandler
+    {
+        [[nodiscard]] virtual std::string execute(std::vector<resp::data_view> const& args) const noexcept = 0;
+        virtual ~ICommandHandler() = default;
+    };
+
+    struct ping_handler final : public ICommandHandler
+    {
+        [[nodiscard]] std::string execute(std::vector<resp::data_view> const& args) const noexcept override;
+        ~ping_handler() override = default;
+    };
+
+    struct echo_handler final : public ICommandHandler
+    {
+        [[nodiscard]] std::string execute(std::vector<resp::data_view> const& args) const noexcept override;
+        ~echo_handler() override = default;
+    };
+
+    struct get_handler final : public ICommandHandler
+    {
+        explicit get_handler(store_t const& store) : m_store(store) {}
+        [[nodiscard]] std::string execute(std::vector<resp::data_view> const& args) const noexcept override;
+        ~get_handler() override = default;
+    private:
+        store_t const& m_store;
+    };
+
+    struct set_handler final : public ICommandHandler
+    {
+        explicit set_handler(store_t& store) : m_store(store) {}
+        [[nodiscard]] std::string execute(std::vector<resp::data_view> const& args) const noexcept override;
+        ~set_handler() override = default;
+    private:
+        store_t& m_store;
+    };
+
     export class command_dispatch
     {
     public:
@@ -29,19 +65,15 @@ namespace LambdaSnail::server
     private:
         memory::buffer_allocator<char>& m_string_allocator;
 
-        libcuckoo::cuckoohash_map<std::string_view, std::string> m_store{1000};
+        store_t m_store{1000};
 
-        //std::hash<std::string_view> m_hash{};
-    };
-
-    export struct ping_handler
-    {
-        resp::data_view handle();
-    };
-
-    export struct echo_handler
-    {
-        resp::data_view handle(resp::data_view const& message);
+        std::unordered_map<std::string_view, ICommandHandler const&> m_command_map
+        {
+            std::pair("PING", ping_handler{}),
+            std::pair("ECHO", echo_handler{}),
+            std::pair("GET", get_handler{ m_store }),
+            std::pair("SET", set_handler{ m_store })
+        };
     };
 }
 
@@ -51,84 +83,65 @@ std::future<std::string> LambdaSnail::server::command_dispatch::process_command(
 
     auto request = message.materialize(resp::Array{});
 
-    // Ugly hard coding
-    std::string response;
-    if(request.size() == 1 and request[0].type == LambdaSnail::resp::data_type::BulkString)
+    if (request.size() == 0 or request[0].type != LambdaSnail::resp::data_type::BulkString)
     {
-        auto _1 = request[0].materialize(LambdaSnail::resp::BulkString{});
-        if(_1 == "PING")
-        {
-            LambdaSnail::server::ping_handler cmd;
-            response = cmd.handle().value;
-        }
-    }
-    else if(request.size() == 2)
-    {
-        auto _1 = request[0].materialize(LambdaSnail::resp::BulkString{});
-        if(_1 == "ECHO")
-        {
-            LambdaSnail::server::echo_handler cmd;
-            auto const _2 = cmd.handle(request[1]).materialize(LambdaSnail::resp::BulkString{});
-            response = _2;
-
-            // Hack to produce bulk string
-            response = "$" + std::to_string(response.size()) + "\r\n" + response;
-            //response = "+" + response;
-        }
-        else if(_1 == "GET")
-        {
-            ZoneNamed(ProcessCommandGet, true);
-
-            //auto lock = std::shared_lock{mutex};
-            auto const key = request[1].materialize(resp::BulkString{});
-            std::string value;
-            // auto const it = m_store.find(std::string(key.begin(), key.end()));
-            // if(it != m_store.end())
-            // {
-            //     response = it->second;
-            // }
-            // else
-            // {
-            //     response = "_\r\n";
-            // }
-            if(m_store.find(key, value))
-            {
-                response = value;
-            }
-            else
-            {
-                response = "_\r\n";
-            }
-        }
-    }
-    else if(request.size() == 3)
-    {
-        auto _1 = request[0].materialize(resp::BulkString{});
-        if(_1 == "SET")
-        {
-            ZoneNamed(ProcessCommandSet, true);
-
-            //auto lock = std::unique_lock{mutex};
-            auto const key = request[1].materialize(resp::BulkString{});
-            auto const value = request[2].value; //request[2].materialize(resp::BulkString{});
-            //m_store.emplace(std::string(key.begin(), key.end()), std::string(value.begin(), value.end()));
-            m_store.insert_or_assign(key, value);
-            response = "+OK\r\n";
-        }
+        return std::async(std::launch::async, []{ return std::string("-Unable to parse request\r\n"); });
     }
 
-    response += "\r\n";
+    return std::async(std::launch::async, [this, request]
+    {
+        auto const _1 = request[0].materialize(resp::BulkString{});
+        auto const cmd_it = m_command_map.find(_1);
+        if (cmd_it != m_command_map.end())
+        {
+            auto const& cmd = cmd_it->second;
+            std::string s = cmd.execute(request);
+            return s;
+        }
 
-    return std::async(std::launch::async, [response]{ return response; });
+        return std::string("-Unable to find command\r\n");;
+    });
 }
 
-LambdaSnail::resp::data_view LambdaSnail::server::ping_handler::handle()
+std::string LambdaSnail::server::ping_handler::execute(std::vector<resp::data_view> const& args) const noexcept
 {
-    return resp::data_view("+PONG\r\n");
+    assert(args.size() == 1);
+    return "+PONG\r\n";
 }
 
-LambdaSnail::resp::data_view LambdaSnail::server::echo_handler::handle(resp::data_view const& message)
+std::string LambdaSnail::server::echo_handler::execute(std::vector<resp::data_view> const& args) const noexcept
 {
-    return message;
+    assert(args.size() == 2);
+
+    auto const str = args[1].materialize(resp::BulkString{});
+    return "$" + std::to_string(str.size()) + "\r\n" + std::string(str.data(), str.size()) + "\r\n";
+}
+
+std::string LambdaSnail::server::get_handler::execute(std::vector<resp::data_view> const& args) const noexcept
+{
+    if (args.size() == 2)
+    {
+        auto const key = args[1].materialize(resp::BulkString{});
+        if(std::string value; m_store.find(key, value))
+        {
+            return value + "\r\n";
+        }
+    }
+
+    return "_\r\n";
+}
+
+std::string LambdaSnail::server::set_handler::execute(std::vector<resp::data_view> const &args) const noexcept
+{
+    if (args.size() == 3)
+    {
+        auto const key = args[1].materialize(resp::BulkString{});
+        auto const value = args[2].value; //request[2].materialize(resp::BulkString{});
+        //m_store.emplace(std::string(key.begin(), key.end()), std::string(value.begin(), value.end()));
+        m_store.insert_or_assign(key, value);
+        return "+OK\r\n";
+    }
+
+    return "-Unable to SET\r\n";
 }
 
