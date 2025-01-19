@@ -1,0 +1,90 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 29,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "hidden": true,
+      "name": "jetbrains-linux-base",
+      "displayName": "Debug (Tracy)",
+      "generator": "Ninja",
+      "vendor": {
+        "jetbrains.com/clion": {
+          "toolchain": "Clang"
+        }
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    },
+    {
+      "name": "debug",
+      "displayName": "Debug",
+      "inherits": "jetbrains-linux-base",
+      "description": "Debug build with tests and sanitizers enabled",
+      "binaryDir": "${sourceDir}/build/debug",
+      "cacheVariables": {
+        "USE_TRACY": "OFF",
+        "BUILD_TESTS": "ON",
+        "SANITIZE_THREAD": "ON",
+        "SANITIZE_MEMORY": "ON",
+        "SANITIZE_UB": "ON",
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "debug-tracy",
+      "displayName": "Debug (Tracy)",
+      "inherits": "jetbrains-linux-base",
+      "description": "Debug build with Tracy enabled, for profiling performance",
+      "binaryDir": "${sourceDir}/build/debug-tracy",
+      "cacheVariables": {
+        "USE_TRACY": "ON",
+        "BUILD_TESTS": "OFF",
+        "SANITIZE_THREAD": "ON",
+        "SANITIZE_MEMORY": "OFF",
+        "SANITIZE_UB": "ON",
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "release",
+      "displayName": "Release",
+      "inherits": "jetbrains-linux-base",
+      "description": "Release Build",
+      "binaryDir": "${sourceDir}/build/release",
+      "cacheVariables": {
+        "USE_TRACY": "OFF",
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "debug-tracy",
+      "configurePreset": "debug-tracy"
+    },
+    {
+      "name": "release",
+      "configurePreset": "release"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "tests",
+      "configurePreset": "release",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "noTestsAction": "error",
+        "stopOnFailure": true
+      }
+    }
+  ]
+}

@@ -2,6 +2,7 @@
 
 .idea
 cmake-*
+build
 
 # User specific
 **/.idea/**/workspace.xml
