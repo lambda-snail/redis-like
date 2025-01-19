@@ -4,6 +4,7 @@ add_subdirectory(resp)
 add_subdirectory(memory)
 add_subdirectory(networking)
 add_subdirectory(server)
+add_subdirectory(logging)
 
 add_executable(redis-like main.cpp)
 target_sources(redis-like
@@ -22,8 +23,10 @@ target_link_libraries(redis-like
         asio
         readerwriterqueue
         concurrentqueue
+        #spdlog
 
         LambdaSnail::resp
         LambdaSnail::networking
         LambdaSnail::server
+        LambdaSnail::logging
 )

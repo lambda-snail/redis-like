@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.29)
 
 project(
     redis_like
-    VERSION "0.1.0"
+    VERSION "0.2.0"
     LANGUAGES CXX
 )
 
@@ -32,7 +32,6 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" OR "${CMAKE_CXX_COMPILER_ID}" ST
 endif()
 
 add_subdirectory(source)
-
 add_subdirectory(external)
 
 include(cmake/IncludeMoodycamel.cmake)
