@@ -32,7 +32,7 @@ int main(int argc, char const** argv)
 
     LambdaSnail::server::database dispatch{allocator};
 
-    runner runner;
+    runner runner(logger);
     runner.run(6379, dispatch, buffer_pool);
 
     return 0;

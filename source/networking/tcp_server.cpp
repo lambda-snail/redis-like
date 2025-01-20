@@ -8,10 +8,13 @@ module;
 #include <iostream>
 #include <thread>
 
+#include <signal.h>
+
 #include <tracy/Tracy.hpp>
 
 export module networking :resp.tcp_server;
 
+import logging;
 import memory;
 import server;
 import resp;
@@ -193,6 +196,8 @@ static constexpr bool get_environment_value(std::string_view var_string, char** 
 export class runner
 {
 public:
+    runner(std::shared_ptr<LambdaSnail::logging::logger> logger) : m_logger(logger) {  }
+
     void run(uint16_t port, LambdaSnail::server::database& dispatch, LambdaSnail::memory::buffer_pool& buffer_pool)
     {
         ZoneScoped;
@@ -223,17 +228,19 @@ public:
         }
         catch (std::exception &e)
         {
-            std::cerr << "Exception in runner: " << e.what() << std::endl;
+            m_logger->get_system_logger()->error("Exception in server runner: {}", e.what());
         }
     }
 
     ~runner()
     {
-        std::cerr << "Shutting down runner" << std::endl;
+        m_logger->get_system_logger()->info("The server is shutting down");
     }
 private:
     asio::io_context m_context{};
     std::vector<std::thread> m_thread_pool{};
 
     int8_t thread_pool_size_ = 8;
+
+    std::shared_ptr<LambdaSnail::logging::logger> m_logger;
 };
