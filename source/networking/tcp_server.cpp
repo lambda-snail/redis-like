@@ -3,7 +3,10 @@ module;
 #include <asio.hpp>
 #include <asio/io_context.hpp>
 #include <asio/ts/internet.hpp>
+
+#include <exception>
 #include <iostream>
+#include <thread>
 
 #include <tracy/Tracy.hpp>
 
@@ -142,7 +145,7 @@ private:
         {
             new_connection->read_request();
         }
-        else
+        else //if (ec == asio::error::operation_aborted) should maybe not log an error when operation aborted
         {
             std::cerr << "[Server] Error when establishing connection: " << ec.message() << std::endl;
         }
@@ -190,15 +193,6 @@ static constexpr bool get_environment_value(std::string_view var_string, char** 
 export class runner
 {
 public:
-    void shutdown()
-    {
-        m_context.stop();
-        for (auto& thread : m_thread_pool)
-        {
-            if (thread.joinable()) thread.join();
-        }
-    }
-
     void run(uint16_t port, LambdaSnail::server::database& dispatch, LambdaSnail::memory::buffer_pool& buffer_pool)
     {
         ZoneScoped;
@@ -206,13 +200,22 @@ public:
         try
         {
             tcp_server server(m_context, port, dispatch, buffer_pool);
-            //context.run();
 
-            //std::vector<std::jthread> m_thread_pool{};
             // See https://think-async.com/Asio/asio-1.30.2/src/examples/cpp11/http/server3/server.cpp
             for (std::size_t i = 0; i < thread_pool_size_; ++i)
                 m_thread_pool.emplace_back([&]{ m_context.run(); });
 
+            sigset_t wait_mask;
+            sigemptyset(&wait_mask);
+            sigaddset(&wait_mask, SIGINT);
+            sigaddset(&wait_mask, SIGQUIT);
+            sigaddset(&wait_mask, SIGTERM);
+            sigaddset(&wait_mask, SIGHUP);
+            pthread_sigmask(SIG_BLOCK, &wait_mask, 0);
+            int sig = 0;
+            sigwait(&wait_mask, &sig);
+
+            m_context.stop();
             for (auto& thread : m_thread_pool)
             {
                 if (thread.joinable()) thread.join();
@@ -220,10 +223,14 @@ public:
         }
         catch (std::exception &e)
         {
-            std::cerr << e.what() << std::endl;
+            std::cerr << "Exception in runner: " << e.what() << std::endl;
         }
     }
 
+    ~runner()
+    {
+        std::cerr << "Shutting down runner" << std::endl;
+    }
 private:
     asio::io_context m_context{};
     std::vector<std::thread> m_thread_pool{};
