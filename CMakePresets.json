@@ -32,7 +32,7 @@
         "USE_TRACY": "OFF",
         "BUILD_TESTS": "ON",
         "SANITIZE_THREAD": "ON",
-        "SANITIZE_MEMORY": "ON",
+        "SANITIZE_MEMORY": "OFF",
         "SANITIZE_UB": "ON",
         "CMAKE_BUILD_TYPE": "Debug"
       }
@@ -61,7 +61,7 @@
       "cacheVariables": {
         "USE_TRACY": "OFF",
         "BUILD_TESTS": "ON",
-        "SANITIZE_THREAD": "ON",
+        "SANITIZE_THREAD": "OFF",
         "SANITIZE_MEMORY": "ON",
         "SANITIZE_UB": "ON",
         "CMAKE_BUILD_TYPE": "Release"
