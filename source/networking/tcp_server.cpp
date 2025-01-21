@@ -8,7 +8,7 @@ module;
 #include <iostream>
 #include <thread>
 
-#include <signal.h>
+#include <csignal>
 
 #include <tracy/Tracy.hpp>
 
