@@ -24,10 +24,12 @@ class tcp_connection : public std::enable_shared_from_this<tcp_connection>
 public:
     typedef std::shared_ptr<tcp_connection> connection_ptr;
 
-    static connection_ptr create(asio::io_context &io_context, LambdaSnail::server::database &dispatch,
-                                 LambdaSnail::memory::buffer_pool &buffer_pool)
+    static connection_ptr create(
+        asio::ip::tcp::socket socket,
+        LambdaSnail::server::database &dispatch,
+        LambdaSnail::memory::buffer_pool &buffer_pool)
     {
-        return connection_ptr(new tcp_connection(io_context, dispatch, buffer_pool));
+        return connection_ptr(new tcp_connection(std::move(socket), dispatch, buffer_pool));
     }
 
     asio::ip::tcp::socket &get_socket()
@@ -39,25 +41,26 @@ public:
     {
         ZoneScoped;
 
-        m_socket.async_read_some(asio::buffer(m_buffer.buffer, m_buffer.size),
-                                 [this_ = this->shared_from_this()](std::error_code const e, size_t length)
-                                 {
-                                     if (not e)
-                                     {
-                                         // std::cout << std::endl << std::format(
-                                         //     "[Connection] Bytes available for reading: {}", length) << std::endl;
+        m_socket.async_read_some(
+            asio::buffer(m_buffer.buffer, m_buffer.size),
+            [this_ = this->shared_from_this()](std::error_code e, size_t length)
+            {
+                if (not e)
+                {
+                    // std::cout << std::endl << std::format(
+                    //     "[Connection] Bytes available for reading: {}", length) << std::endl;
 
-                                         // this_->m_data.insert(this_->m_data.begin(), this_->m_buffer.begin(), this_->m_buffer.end());
+                    // this_->m_data.insert(this_->m_data.begin(), this_->m_buffer.begin(), this_->m_buffer.end());
 
-                                         this_->handle_command(length);
-                                     } else if (e != asio::error::eof)
-                                     {
-                                         std::cerr << std::format("Handler encountered error: {}", e.message());
-                                     } else
-                                     {
-                                         //this_->handle_command();
-                                     }
-                                 });
+                    this_->handle_command(length);
+                } else if (e != asio::error::eof)
+                {
+                    std::cerr << std::format("Handler encountered error: {}", e.message());
+                } else
+                {
+                    //this_->handle_command();
+                }
+            });
     }
 
     ~tcp_connection()
@@ -82,9 +85,11 @@ private:
                           });
     }
 
-    explicit tcp_connection(asio::io_context &io_context, LambdaSnail::server::database &dispatch,
-                            LambdaSnail::memory::buffer_pool &buffer_pool) : m_dispatch(dispatch), m_socket(io_context),
-                                                                             m_buffer_pool(buffer_pool), m_buffer{}
+    explicit tcp_connection(
+        asio::ip::tcp::socket socket,
+        LambdaSnail::server::database &dispatch,
+        LambdaSnail::memory::buffer_pool &buffer_pool) : m_dispatch(dispatch), m_socket(std::move(socket)),
+                                                         m_buffer_pool(buffer_pool), m_buffer{}
     {
         //std::array<char, 1024>& buffer
         // TODO: Hard-coded for now
@@ -134,19 +139,37 @@ private:
     {
         ZoneScoped;
 
-        typename tcp_connection::connection_ptr new_connection =
-                tcp_connection::create(m_asio_context, m_dispatch, m_buffers);
-
-        m_acceptor.async_accept(new_connection->get_socket(),
-        [=, this](asio::error_code ec)
-        {
-            if (not m_acceptor.is_open())
+        m_acceptor.async_accept(
+            asio::make_strand(m_asio_context),
+            [this](std::error_code ec, asio::ip::tcp::socket socket)
             {
-                return;
-            }
+                if (not m_acceptor.is_open())
+                {
+                    return;
+                }
 
-            handle_accept(new_connection, ec);
-        });
+                if (not ec)
+                {
+                    tcp_connection::connection_ptr new_connection =
+                            tcp_connection::create(std::move(socket), m_dispatch, m_buffers);
+
+                    handle_accept(new_connection, ec);
+                }
+            });
+
+        // typename tcp_connection::connection_ptr new_connection =
+        //         tcp_connection::create(m_asio_context, m_dispatch, m_buffers);
+        //
+        // m_acceptor.async_accept(new_connection->get_socket(),
+        // [=, this](asio::error_code ec)
+        // {
+        //     if (not m_acceptor.is_open())
+        //     {
+        //         return;
+        //     }
+        //
+        //     handle_accept(new_connection, ec);
+        // });
     }
 
     void handle_accept(tcp_connection::connection_ptr const &new_connection, std::error_code const &ec)
@@ -186,25 +209,40 @@ public:
 
         try
         {
+            asio::signal_set signal_set{m_context};
+            signal_set.add(SIGINT);
+            signal_set.add(SIGTERM);
+            signal_set.add(SIGHUP);
+#if defined(SIGQUIT)
+            signal_set.add(SIGQUIT);
+#endif
+            signal_set.async_wait(
+                [this](std::error_code ec, int signal)
+                {
+                    m_logger->get_system_logger()->
+                            info("The system received signal {} - {}", signal, strsignal(signal));
+                    m_context.stop();
+                });
+
             tcp_server server(m_context, port, dispatch, buffer_pool);
 
             // See https://think-async.com/Asio/asio-1.30.2/src/examples/cpp11/http/server3/server.cpp
             for (std::size_t i = 0; i < thread_pool_size_; ++i)
                 m_thread_pool.emplace_back([&] { m_context.run(); });
 
-            sigset_t wait_mask;
-            sigemptyset(&wait_mask);
-            sigaddset(&wait_mask, SIGINT);
-            sigaddset(&wait_mask, SIGQUIT);
-            sigaddset(&wait_mask, SIGTERM);
-            sigaddset(&wait_mask, SIGHUP);
-            pthread_sigmask(SIG_BLOCK, &wait_mask, 0);
-            int signal = 0;
-            sigwait(&wait_mask, &signal);
+            // sigset_t wait_mask;
+            // sigemptyset(&wait_mask);
+            // sigaddset(&wait_mask, SIGINT);
+            // sigaddset(&wait_mask, SIGQUIT);
+            // sigaddset(&wait_mask, SIGTERM);
+            // sigaddset(&wait_mask, SIGHUP);
+            // pthread_sigmask(SIG_BLOCK, &wait_mask, 0);
+            // int signal = 0;
+            // sigwait(&wait_mask, &signal);
 
-            m_logger->get_system_logger()->info("The system received signal {} - {}", signal, strsignal(signal));
+            //m_logger->get_system_logger()->info("The system received signal {} - {}", signal, strsignal(signal));
 
-            m_context.stop();
+            //m_context.stop();
             for (auto &thread: m_thread_pool)
             {
                 if (thread.joinable()) thread.join();
