@@ -164,34 +164,6 @@ private:
     asio::ip::tcp::acceptor m_acceptor;
 };
 
-/**
- * Extracts the value of an environment variable with a numeric value.
- * @var_string The string of the variable, including the '=' character.
- */
-template<typename value_t>
-static constexpr bool get_environment_value(std::string_view var_string, char** env_vars, value_t& value)
-{
-    for(int32_t i = 0; env_vars[i] != nullptr; ++i)
-    {
-        std::string_view env_var(env_vars[i]);
-
-        if(env_var.starts_with(var_string))
-        {
-            auto value_str = env_var.substr(var_string.length(), env_var.length());
-            if(not value_str.empty())
-            {
-                if(std::from_chars(env_var.data() + var_string.length(), env_var.data() + env_var.length(), value).ec == std::errc{})
-                {
-                    return true;
-                }
-            }
-        }
-    }
-
-    value = {};
-    return false;
-};
-
 // TODO: Move this out from here
 export class runner
 {
@@ -217,8 +189,10 @@ public:
             sigaddset(&wait_mask, SIGTERM);
             sigaddset(&wait_mask, SIGHUP);
             pthread_sigmask(SIG_BLOCK, &wait_mask, 0);
-            int sig = 0;
-            sigwait(&wait_mask, &sig);
+            int signal = 0;
+            sigwait(&wait_mask, &signal);
+
+            m_logger->get_system_logger()->info("The system received signal {} - {}", signal, strsignal(signal));
 
             m_context.stop();
             for (auto& thread : m_thread_pool)
