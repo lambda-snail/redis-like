@@ -53,12 +53,10 @@ public:
                     // this_->m_data.insert(this_->m_data.begin(), this_->m_buffer.begin(), this_->m_buffer.end());
 
                     this_->handle_command(length);
-                } else if (e != asio::error::eof)
+                }
+                else if (e != asio::error::eof)
                 {
                     std::cerr << std::format("Handler encountered error: {}", e.message());
-                } else
-                {
-                    //this_->handle_command();
                 }
             });
     }
@@ -79,10 +77,19 @@ private:
         std::string response = m_dispatch.process_command(resp_data);
 
         asio::async_write(m_socket, asio::buffer(response),
-                          [this_ = this->shared_from_this()](asio::error_code ec, size_t length)
-                          {
-                              this_->handle_write(ec, length);
-                          });
+          [this_ = this->shared_from_this()](asio::error_code ec, size_t length)
+          {
+              if (not ec)
+              {
+                  // TODO: Here we should read again if the client is sending more commands
+                  std::error_code ignored_ec;
+                  this_->get_socket().shutdown(asio::ip::tcp::socket::shutdown_both, ignored_ec);
+              }
+              else if (ec != asio::error::eof)
+              {
+                  std::cerr << "[Connection] Error when establishing connection: " << ec.message() << std::endl;
+              }
+          });
     }
 
     explicit tcp_connection(
@@ -96,20 +103,6 @@ private:
         //std::array<char, 1024ul>* m_buffer = allocator.allocate(1024); // std::allocator_traits<Allocator>::allocate(allocator, 1024);
         //m_buffer = *allocator.allocate(1024); // std::allocator_traits<Allocator>::allocate(allocator, 1024);
         m_buffer = m_buffer_pool.request_buffer(1024);
-    }
-
-    void handle_write(std::error_code const &ec, size_t bytes)
-    {
-        ZoneScoped;
-
-        if (not ec)
-        {
-            // std::clog << "[Connection] Wrote " << bytes << " bytes" << std::endl;
-            //read_request();
-        } else if (ec != asio::error::eof)
-        {
-            std::cerr << "[Connection] Error when establishing connection: " << ec.message() << std::endl;
-        }
     }
 
     LambdaSnail::memory::buffer_pool &m_buffer_pool;

@@ -3,6 +3,7 @@ module;
 #include <array>
 #include <cassert>
 #include <mutex>
+#include <ranges>
 #include <shared_mutex>
 #include <vector>
 
