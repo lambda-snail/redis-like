@@ -35,30 +35,41 @@ asio::awaitable<void> echo(
     LambdaSnail::server::database& dispatch,
     LambdaSnail::memory::buffer_pool& buffer_pool)
 {
-    auto buffer_info = buffer_pool.request_buffer(2048);
+    std::cout << "Connection received on port " << socket.remote_endpoint().port() << std::endl;
 
-    std::cout << "Connection received" << std::endl;
+    auto buffer_info = buffer_pool.request_buffer(2048);
+    if (buffer_info.size == 0)
+    {
+        std::cout << "No buffers available" << std::endl;
+    }
 
     try
     {
         //char data[2048];
-        //while (true) // TODO: This is for streaming later
-        //{
+        while (true) // TODO: This is for streaming later
+        {
             auto [ec, n] = co_await socket.async_read_some(
                 asio::buffer(buffer_info.buffer, buffer_info.size),
                 asio::as_tuple(asio::use_awaitable));
             if (ec)
             {
-                co_return;
+                std::cout << ec.message() << std::endl;
+                break;
+                //buffer_pool.release_buffer(buffer_info.buffer);
+                //co_return;
             }
-
-            // TODO: Read more if we need to etc.
 
             LambdaSnail::resp::data_view resp_data(std::string_view(buffer_info.buffer, n));
             std::string response = dispatch.process_command(resp_data);
 
-            co_await async_write(socket, asio::buffer(response, response.size()));
-        //}
+            //std::string response = "+OK\r\n";
+
+            auto [ec_w, n_written] = co_await async_write(socket, asio::buffer(response, response.size()), asio::as_tuple(asio::use_awaitable));
+            if (ec)
+            {
+                std::cout << ec_w.message() << std::endl;
+            }
+        }
     }
     catch (std::exception& e)
     {
@@ -66,7 +77,6 @@ asio::awaitable<void> echo(
     }
 
     buffer_pool.release_buffer(buffer_info.buffer);
-
 }
 
 asio::awaitable<void> listener(
@@ -76,6 +86,15 @@ asio::awaitable<void> listener(
 {
     auto executor = co_await asio::this_coro::executor;
     tcp_acceptor_t acceptor(executor, {asio::ip::tcp::v4(), port});
+
+    acceptor.set_option(asio::ip::tcp::acceptor::reuse_address(true));
+     typedef asio::detail::socket_option::boolean<SOL_SOCKET, SO_REUSEPORT> reuse_port;
+     acceptor.set_option(reuse_port(true));
+
+    // int one = 1;
+    // auto result = setsockopt(acceptor.native_handle(), SOL_SOCKET /*SOL_SOCKET*/, SO_REUSEADDR | SO_REUSEPORT, &one, sizeof(one));
+    //auto error = strerror(errno); //errno;
+
     while (true)
     {
         asio::ip::tcp::socket socket = co_await acceptor.async_accept();

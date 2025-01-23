@@ -57,7 +57,13 @@ namespace LambdaSnail::server
     export class database
     {
     public:
-        explicit database(memory::buffer_allocator<char>& string_allocator) : m_string_allocator(string_allocator) {}
+        explicit database(memory::buffer_allocator<char>& string_allocator) : m_string_allocator(string_allocator)
+        {
+            m_command_map.insert_or_assign("PING", [](){ return std::make_shared<ping_handler>(); });
+            m_command_map.insert_or_assign("ECHO", [](){ return std::make_shared<echo_handler>(); });
+            m_command_map.insert_or_assign("GET", [&store=m_store](){ return std::make_shared<get_handler>(store); });
+            m_command_map.insert_or_assign("SET", [&store=m_store](){ return std::make_shared<set_handler>(store); });
+        }
         [[nodiscard]] std::string process_command(resp::data_view message);
 
     private:
@@ -65,19 +71,28 @@ namespace LambdaSnail::server
 
         store_t m_store{1000};
 
-        std::unordered_map<std::string_view, ICommandHandler const*> m_command_map
-        {
-            { "PING", new ping_handler },
-            { "ECHO", new echo_handler },
-            { "GET", new get_handler{ m_store } },
-            { "SET", new set_handler{ m_store } }
-        };
+        // std::unordered_map<std::string_view, ICommandHandler const*> m_command_map
+        // {
+        //     { "PING", new ping_handler },
+        //     { "ECHO", new echo_handler },
+        //     { "GET", new get_handler{ m_store } },
+        //     { "SET", new set_handler{ m_store } }
+        // };
+
+        std::unordered_map<std::string_view, std::function<std::shared_ptr<ICommandHandler>()>> m_command_map;
+
+
+        //std::shared_ptr<ICommandHandler> get_command(std::string_view command) const;
+
+        std::shared_mutex m_mutex{};
     };
 }
 
 std::string LambdaSnail::server::database::process_command(resp::data_view message)
 {
     ZoneNamed(ProcessCommand, true);
+
+    //auto lock = std::unique_lock { m_mutex };
 
     auto const request = message.materialize(resp::Array{});
 
@@ -87,16 +102,30 @@ std::string LambdaSnail::server::database::process_command(resp::data_view messa
     }
 
     auto const _1 = request[0].materialize(resp::BulkString{});
+    // get_handler cmd(m_store);
+    // return cmd.execute(request);
+
     auto const cmd_it = m_command_map.find(_1);
     if (cmd_it != m_command_map.end())
     {
-        auto const* cmd = cmd_it->second;
-        if (cmd)
+        auto const& factory_fn = cmd_it->second;
+        auto const command = factory_fn();
+        if (command)
         {
-            std::string s = cmd->execute(request);
+            std::string s = command->execute(request);
             return s;
         }
     }
+
+     // if (cmd_it != m_command_map.end())
+     // {
+     //     auto const* cmd = cmd_it->second;
+     //     if (cmd)
+     //     {
+     //         std::string s = cmd->execute(request);
+     //         return s;
+     //     }
+     // }
 
     return { "-Unable to find command\r\n" };
 }
