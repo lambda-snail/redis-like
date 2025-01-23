@@ -3,6 +3,13 @@ module;
 #include <asio.hpp>
 #include <asio/io_context.hpp>
 #include <asio/ts/internet.hpp>
+#include <asio/co_spawn.hpp>
+#include <asio/deferred.hpp>
+#include <asio/detached.hpp>
+#include <asio/ip/tcp.hpp>
+#include <asio/signal_set.hpp>
+#include <asio/write.hpp>
+#include <cstdio>
 
 #include <exception>
 #include <iostream>
@@ -19,174 +26,62 @@ import memory;
 import server;
 import resp;
 
-class tcp_connection : public std::enable_shared_from_this<tcp_connection>
+using default_token_t = asio::deferred_t;
+using tcp_acceptor_t = default_token_t::as_default_on_t<asio::ip::tcp::acceptor>;
+using tcp_socket_t = default_token_t::as_default_on_t<asio::ip::tcp::socket>;
+
+asio::awaitable<void> echo(
+    tcp_socket_t socket,
+    LambdaSnail::server::database& dispatch,
+    LambdaSnail::memory::buffer_pool& buffer_pool)
 {
-public:
-    typedef std::shared_ptr<tcp_connection> connection_ptr;
+    auto buffer_info = buffer_pool.request_buffer(2048);
 
-    static connection_ptr create(
-        asio::ip::tcp::socket socket,
-        LambdaSnail::server::database &dispatch,
-        LambdaSnail::memory::buffer_pool &buffer_pool)
+    std::cout << "Connection received" << std::endl;
+
+    try
     {
-        return connection_ptr(new tcp_connection(std::move(socket), dispatch, buffer_pool));
-    }
-
-    asio::ip::tcp::socket &get_socket()
-    {
-        return m_socket;
-    }
-
-    void read_request()
-    {
-        ZoneScoped;
-
-        m_socket.async_read_some(
-            asio::buffer(m_buffer.buffer, m_buffer.size),
-            [this_ = this->shared_from_this()](std::error_code e, size_t length)
+        //char data[2048];
+        //while (true) // TODO: This is for streaming later
+        //{
+            auto [ec, n] = co_await socket.async_read_some(
+                asio::buffer(buffer_info.buffer, buffer_info.size),
+                asio::as_tuple(asio::use_awaitable));
+            if (ec)
             {
-                if (not e)
-                {
-                    // std::cout << std::endl << std::format(
-                    //     "[Connection] Bytes available for reading: {}", length) << std::endl;
+                co_return;
+            }
 
-                    // this_->m_data.insert(this_->m_data.begin(), this_->m_buffer.begin(), this_->m_buffer.end());
+            // TODO: Read more if we need to etc.
 
-                    this_->handle_command(length);
-                }
-                else if (e != asio::error::eof)
-                {
-                    std::cerr << std::format("Handler encountered error: {}", e.message());
-                }
-            });
+            LambdaSnail::resp::data_view resp_data(std::string_view(buffer_info.buffer, n));
+            std::string response = dispatch.process_command(resp_data);
+
+            co_await async_write(socket, asio::buffer(response, response.size()));
+        //}
     }
-
-    ~tcp_connection()
+    catch (std::exception& e)
     {
-        m_buffer_pool.release_buffer(m_buffer.buffer);
-        //m_allocator.deallocate(&m_buffer, m_buffer.size());
-        //std::clog << "[Connection] Destroyed" << std::endl;
+        std::printf("echo Exception: %s\n", e.what());
     }
 
-private:
-    void handle_command(size_t length)
-    {
-        ZoneScoped;
+    buffer_pool.release_buffer(buffer_info.buffer);
 
-        LambdaSnail::resp::data_view resp_data(std::string_view(m_buffer.buffer, m_buffer.size));
-        std::string response = m_dispatch.process_command(resp_data);
+}
 
-        asio::async_write(m_socket, asio::buffer(response),
-          [this_ = this->shared_from_this()](asio::error_code ec, size_t length)
-          {
-              if (not ec)
-              {
-                  // TODO: Here we should read again if the client is sending more commands
-                  std::error_code ignored_ec;
-                  this_->get_socket().shutdown(asio::ip::tcp::socket::shutdown_both, ignored_ec);
-              }
-              else if (ec != asio::error::eof)
-              {
-                  std::cerr << "[Connection] Error when establishing connection: " << ec.message() << std::endl;
-              }
-          });
-    }
-
-    explicit tcp_connection(
-        asio::ip::tcp::socket socket,
-        LambdaSnail::server::database &dispatch,
-        LambdaSnail::memory::buffer_pool &buffer_pool) : m_dispatch(dispatch), m_socket(std::move(socket)),
-                                                         m_buffer_pool(buffer_pool), m_buffer{}
-    {
-        //std::array<char, 1024>& buffer
-        // TODO: Hard-coded for now
-        //std::array<char, 1024ul>* m_buffer = allocator.allocate(1024); // std::allocator_traits<Allocator>::allocate(allocator, 1024);
-        //m_buffer = *allocator.allocate(1024); // std::allocator_traits<Allocator>::allocate(allocator, 1024);
-        m_buffer = m_buffer_pool.request_buffer(1024);
-    }
-
-    LambdaSnail::memory::buffer_pool &m_buffer_pool;
-    LambdaSnail::server::database &m_dispatch;
-    asio::ip::tcp::socket m_socket;
-
-    //std::array<char, 10 * 1024> m_buffer{};
-    //std::array<char, 1024>& m_buffer;
-    LambdaSnail::memory::buffer_info m_buffer;
-};
-
-class tcp_server
+asio::awaitable<void> listener(
+    uint16_t port,
+    LambdaSnail::server::database& dispatch,
+    LambdaSnail::memory::buffer_pool& buffer_pool)
 {
-public:
-    explicit tcp_server(asio::io_context &context, uint16_t const port, LambdaSnail::server::database &dispatch,
-                        LambdaSnail::memory::buffer_pool &buffer_pool)
-        : m_dispatch(dispatch),
-          m_buffers(buffer_pool),
-          m_asio_context(context),
-          m_acceptor(context, asio::ip::tcp::endpoint(asio::ip::tcp::v4(), port))
+    auto executor = co_await asio::this_coro::executor;
+    tcp_acceptor_t acceptor(executor, {asio::ip::tcp::v4(), port});
+    while (true)
     {
-        start_accept();
+        asio::ip::tcp::socket socket = co_await acceptor.async_accept();
+        co_spawn(executor, echo(std::move(socket), dispatch, buffer_pool), asio::detached);
     }
-
-private:
-    void start_accept()
-    {
-        ZoneScoped;
-
-        m_acceptor.async_accept(
-            asio::make_strand(m_asio_context),
-            [this](std::error_code ec, asio::ip::tcp::socket socket)
-            {
-                if (not m_acceptor.is_open())
-                {
-                    return;
-                }
-
-                if (not ec)
-                {
-                    tcp_connection::connection_ptr new_connection =
-                            tcp_connection::create(std::move(socket), m_dispatch, m_buffers);
-
-                    handle_accept(new_connection, ec);
-                }
-            });
-
-        // typename tcp_connection::connection_ptr new_connection =
-        //         tcp_connection::create(m_asio_context, m_dispatch, m_buffers);
-        //
-        // m_acceptor.async_accept(new_connection->get_socket(),
-        // [=, this](asio::error_code ec)
-        // {
-        //     if (not m_acceptor.is_open())
-        //     {
-        //         return;
-        //     }
-        //
-        //     handle_accept(new_connection, ec);
-        // });
-    }
-
-    void handle_accept(tcp_connection::connection_ptr const &new_connection, std::error_code const &ec)
-    {
-        ZoneScoped;
-
-        if (not ec)
-        {
-            new_connection->read_request();
-        } else //if (ec == asio::error::operation_aborted) should maybe not log an error when operation aborted
-        {
-            std::cerr << "[Server] Error when establishing connection: " << ec.message() << std::endl;
-        }
-
-        start_accept();
-    }
-
-    LambdaSnail::server::database &m_dispatch;
-    //typename std::allocator_traits<Allocator>::allocator_type allocator{};
-    LambdaSnail::memory::buffer_pool &m_buffers;
-
-    asio::io_context &m_asio_context;
-    asio::ip::tcp::acceptor m_acceptor;
-};
+}
 
 // TODO: Move this out from here
 export class runner
@@ -217,11 +112,15 @@ public:
                     m_context.stop();
                 });
 
-            tcp_server server(m_context, port, dispatch, buffer_pool);
+            asio::co_spawn(m_context, listener(port, dispatch, buffer_pool), asio::detached);
 
-            // See https://think-async.com/Asio/asio-1.30.2/src/examples/cpp11/http/server3/server.cpp
-            for (std::size_t i = 0; i < thread_pool_size_; ++i)
-                m_thread_pool.emplace_back([&] { m_context.run(); });
+            m_context.run();
+
+            // tcp_server server(m_context, port, dispatch, buffer_pool);
+            //
+            // // See https://think-async.com/Asio/asio-1.30.2/src/examples/cpp11/http/server3/server.cpp
+            // for (std::size_t i = 0; i < thread_pool_size_; ++i)
+            //     m_thread_pool.emplace_back([&] { m_context.run(); });
 
             // sigset_t wait_mask;
             // sigemptyset(&wait_mask);
@@ -236,10 +135,10 @@ public:
             //m_logger->get_system_logger()->info("The system received signal {} - {}", signal, strsignal(signal));
 
             //m_context.stop();
-            for (auto &thread: m_thread_pool)
-            {
-                if (thread.joinable()) thread.join();
-            }
+            // for (auto &thread: m_thread_pool)
+            // {
+            //     if (thread.joinable()) thread.join();
+            // }
         } catch (std::exception &e)
         {
             m_logger->get_system_logger()->error("Exception in server runner: {}", e.what());
@@ -252,7 +151,7 @@ public:
     }
 
 private:
-    asio::io_context m_context{};
+    asio::io_context m_context{ 1 };
     std::vector<std::thread> m_thread_pool{};
 
     int8_t thread_pool_size_ = 8;
