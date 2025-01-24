@@ -54,14 +54,10 @@ asio::awaitable<void> echo(
             {
                 std::cout << ec.message() << std::endl;
                 break;
-                //buffer_pool.release_buffer(buffer_info.buffer);
-                //co_return;
             }
 
             LambdaSnail::resp::data_view resp_data(std::string_view(buffer_info.buffer, n));
             std::string response = dispatch.process_command(resp_data);
-
-            //std::string response = "+OK\r\n";
 
             auto [ec_w, n_written] = co_await async_write(socket, asio::buffer(response, response.size()), asio::as_tuple(asio::use_awaitable));
             if (ec)
