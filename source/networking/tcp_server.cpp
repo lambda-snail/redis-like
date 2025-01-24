@@ -12,8 +12,6 @@ module;
 #include <cstdio>
 
 #include <exception>
-#include <iostream>
-#include <thread>
 
 #include <csignal>
 
@@ -33,14 +31,17 @@ using tcp_socket_t = default_token_t::as_default_on_t<asio::ip::tcp::socket>;
 asio::awaitable<void> connection(
     tcp_socket_t socket,
     LambdaSnail::server::database& dispatch,
-    LambdaSnail::memory::buffer_pool& buffer_pool)
+    LambdaSnail::memory::buffer_pool& buffer_pool,
+    std::shared_ptr<LambdaSnail::logging::logger> logger)
 {
-    std::cout << "Connection received on port " << socket.remote_endpoint().port() << std::endl;
+    logger->get_network_logger()->trace("Connection received on port: {}", socket.remote_endpoint().port());
 
     auto buffer_info = buffer_pool.request_buffer(2048);
     if (buffer_info.size == 0)
     {
-        std::cout << "No buffers available" << std::endl;
+        // TODO: Add own concrete exception here
+        logger->get_network_logger()->error("Failed to acquire memory from buffer pool");
+        throw std::bad_alloc();
     }
 
     try
@@ -50,9 +51,16 @@ asio::awaitable<void> connection(
             auto [ec, n] = co_await socket.async_read_some(
                 asio::buffer(buffer_info.buffer, buffer_info.size),
                 asio::as_tuple(asio::use_awaitable));
-            if (ec)
+            if (ec == asio::error::eof) [[unlikely]]
             {
-                std::cout << ec.message() << std::endl;
+                // We separate the handling of eof since it's not an error per se
+                break;
+            }
+
+            if (ec) [[unlikely]]
+            {
+                // These are the errors we should log
+                logger->get_network_logger()->error("Error while reading from socket: {}", ec.message());
                 break;
             }
 
@@ -60,9 +68,9 @@ asio::awaitable<void> connection(
             std::string response = dispatch.process_command(resp_data);
 
             auto [ec_w, n_written] = co_await async_write(socket, asio::buffer(response, response.size()), asio::as_tuple(asio::use_awaitable));
-            if (ec)
+            if (ec) [[unlikely]]
             {
-                std::cout << ec_w.message() << std::endl;
+                logger->get_network_logger()->error("Error while writing to socket: {}", ec_w.message());
             }
         }
     }
@@ -77,7 +85,8 @@ asio::awaitable<void> connection(
 asio::awaitable<void> listener(
     uint16_t port,
     LambdaSnail::server::database& dispatch,
-    LambdaSnail::memory::buffer_pool& buffer_pool)
+    LambdaSnail::memory::buffer_pool& buffer_pool,
+    std::shared_ptr<LambdaSnail::logging::logger> logger)
 {
     auto executor = co_await asio::this_coro::executor;
     tcp_acceptor_t acceptor(executor, {asio::ip::tcp::v4(), port});
@@ -93,7 +102,7 @@ asio::awaitable<void> listener(
     while (true)
     {
         asio::ip::tcp::socket socket = co_await acceptor.async_accept();
-        co_spawn(executor, connection(std::move(socket), dispatch, buffer_pool), asio::detached);
+        co_spawn(executor, connection(std::move(socket), dispatch, buffer_pool, logger), asio::detached);
     }
 }
 
@@ -126,7 +135,7 @@ public:
                     m_context.stop();
                 });
 
-            asio::co_spawn(m_context, listener(port, dispatch, buffer_pool), asio::detached);
+            asio::co_spawn(m_context, listener(port, dispatch, buffer_pool, m_logger), asio::detached);
 
             m_context.run();
 
