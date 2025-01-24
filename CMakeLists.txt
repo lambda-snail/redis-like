@@ -47,9 +47,14 @@ add_subdirectory(source)
 add_subdirectory(external)
 
 include(cmake/IncludeMoodycamel.cmake)
-include(cmake/IncludeLibcuckoo.cmake)
 include(cmake/IncludeTBB.cmake)
 
 if(BUILD_TESTS)
     add_subdirectory(tests)
 endif()
+
+#get_cmake_property(_variableNames VARIABLES)
+#list (SORT _variableNames)
+#foreach (_variableName ${_variableNames})
+#    message(STATUS "${_variableName}=${${_variableName}}")
+#endforeach()

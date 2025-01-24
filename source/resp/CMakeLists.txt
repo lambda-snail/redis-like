@@ -6,7 +6,6 @@ target_sources(resp
         resp.cppm
 )
 
-#target_link_libraries(resp PRIVATE fmt::fmt spdlog::spdlog)
 add_library(LambdaSnail::resp ALIAS resp)
 
 target_link_libraries(resp PUBLIC TracyClient)

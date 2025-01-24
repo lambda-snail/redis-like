@@ -21,9 +21,6 @@ target_include_directories(redis-like PUBLIC ${concurrentqueue_SOURCE_DIR})
 target_link_libraries(redis-like
         PRIVATE
         asio
-        readerwriterqueue
-        concurrentqueue
-        #spdlog
 
         LambdaSnail::resp
         LambdaSnail::networking

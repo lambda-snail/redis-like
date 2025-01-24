@@ -8,12 +8,6 @@ target_sources(server
         database.cpp
 )
 
-#get_cmake_property(_variableNames VARIABLES)
-#list (SORT _variableNames)
-#foreach (_variableName ${_variableNames})
-#    message(STATUS "${_variableName}=${${_variableName}}")
-#endforeach()
-
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" OR "${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     #SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wformat=2 -Wconversion -Wimplicit-fallthrough")
     target_compile_options(server PRIVATE -Wall -Wformat=2 -Wconversion -Wimplicit-fallthrough)
@@ -21,7 +15,7 @@ endif()
 
 add_library(LambdaSnail::server ALIAS server)
 
-target_link_libraries(server PRIVATE LambdaSnail::memory LambdaSnail::resp libcuckoo spdlog)
+target_link_libraries(server PRIVATE LambdaSnail::memory LambdaSnail::resp spdlog TBB::tbb)
 
-target_link_libraries(server PUBLIC TracyClient TBB::tbb)
+target_link_libraries(server PUBLIC TracyClient)
 target_include_directories(server PUBLIC ${Tracy_SOURCE_DIR}/public)
