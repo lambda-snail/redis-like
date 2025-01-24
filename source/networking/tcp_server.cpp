@@ -45,8 +45,7 @@ asio::awaitable<void> echo(
 
     try
     {
-        //char data[2048];
-        while (true) // TODO: This is for streaming later
+        while (true)
         {
             auto [ec, n] = co_await socket.async_read_some(
                 asio::buffer(buffer_info.buffer, buffer_info.size),
