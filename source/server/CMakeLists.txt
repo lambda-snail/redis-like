@@ -8,11 +8,6 @@ target_sources(server
         database.cpp
 )
 
-if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" OR "${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-    #SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wformat=2 -Wconversion -Wimplicit-fallthrough")
-    target_compile_options(server PRIVATE -Wall -Wformat=2 -Wconversion -Wimplicit-fallthrough)
-endif()
-
 add_library(LambdaSnail::server ALIAS server)
 
 target_link_libraries(server PRIVATE LambdaSnail::memory LambdaSnail::resp spdlog TBB::tbb)

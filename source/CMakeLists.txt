@@ -13,7 +13,22 @@ target_sources(redis-like
         main.cpp
 )
 
-#redis_like_target_properties(resp)
+if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" OR "${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+    target_compile_options(redis-like PRIVATE -Wall -Wformat=2 -Wconversion -Wimplicit-fallthrough)
+
+    if(SANITIZE_ADDRESS)
+        target_compile_options(redis-like PRIVATE -fsanitize=address)
+    endif()
+    if(SANITIZE_THREAD)
+        target_compile_options(redis-like PRIVATE -fsanitize=thread)
+    endif()
+    if(SANITIZE_MEMORY)
+        target_compile_options(redis-like PRIVATE -fsanitize=memory)
+    endif()
+    if(SANITIZE_UB)
+        target_compile_options(redis-like PRIVATE -fsanitize=undefined)
+    endif()
+endif()
 
 target_include_directories(redis-like PUBLIC ${readerwriterqueue_SOURCE_DIR})
 target_include_directories(redis-like PUBLIC ${concurrentqueue_SOURCE_DIR})
