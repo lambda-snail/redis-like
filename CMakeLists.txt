@@ -23,7 +23,7 @@ endif()
 message("Tracy is: ${TRACY_ENABLE}")
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" OR "${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wformat=2 -Wconversion -Wimplicit-fallthrough")
+    #SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wformat=2 -Wconversion -Wimplicit-fallthrough")
 
     if(SANITIZE_ADDRESS)
         SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address")
@@ -48,6 +48,7 @@ add_subdirectory(external)
 
 include(cmake/IncludeMoodycamel.cmake)
 include(cmake/IncludeLibcuckoo.cmake)
+include(cmake/IncludeTBB.cmake)
 
 if(BUILD_TESTS)
     add_subdirectory(tests)

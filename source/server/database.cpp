@@ -6,6 +6,8 @@ module;
 #include <shared_mutex>
 #include <unordered_map>
 
+#include "oneapi/tbb/concurrent_unordered_map.h"
+
 #include <tracy/Tracy.hpp>
 
 export module server: resp.commands; // Move to resp module?
@@ -15,7 +17,8 @@ import resp;
 
 namespace LambdaSnail::server
 {
-    using store_t = std::unordered_map<std::string_view, std::string>;
+    //using store_t = std::unordered_map<std::string, std::string>; // TODO: Should be string!!! ?
+    using store_t = tbb::concurrent_unordered_map<std::string, std::string>;
 
     struct ICommandHandler
     {
@@ -132,8 +135,7 @@ std::string LambdaSnail::server::get_handler::execute(std::vector<resp::data_vie
 
     if (args.size() == 2)
     {
-        auto const key = args[1].materialize(resp::BulkString{});
-        //if(std::string value; m_store.find(key, value))
+        auto const key = std::string(args[1].materialize(resp::BulkString{}));
 
         auto it = m_store.find(key);
         if (it != m_store.end())
@@ -152,10 +154,12 @@ std::string LambdaSnail::server::set_handler::execute(std::vector<resp::data_vie
 
     if (args.size() == 3)
     {
-        auto const key = args[1].materialize(resp::BulkString{});
-        auto const value = args[2].value; //request[2].materialize(resp::BulkString{});
-        //m_store.emplace(std::string(key.begin(), key.end()), std::string(value.begin(), value.end()));
-        m_store.insert_or_assign(key, value);
+        auto const key = std::string(args[1].materialize(resp::BulkString{}));
+        auto const value = std::string(args[2].value); //request[2].materialize(resp::BulkString{});
+
+        //m_store.insert_or_assign(key, value);
+        m_store[key] = value;
+
         return "+OK\r\n";
     }
 
