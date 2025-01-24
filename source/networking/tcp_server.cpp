@@ -30,7 +30,7 @@ using default_token_t = asio::deferred_t;
 using tcp_acceptor_t = default_token_t::as_default_on_t<asio::ip::tcp::acceptor>;
 using tcp_socket_t = default_token_t::as_default_on_t<asio::ip::tcp::socket>;
 
-asio::awaitable<void> echo(
+asio::awaitable<void> connection(
     tcp_socket_t socket,
     LambdaSnail::server::database& dispatch,
     LambdaSnail::memory::buffer_pool& buffer_pool)
@@ -88,12 +88,12 @@ asio::awaitable<void> listener(
 
     // int one = 1;
     // auto result = setsockopt(acceptor.native_handle(), SOL_SOCKET /*SOL_SOCKET*/, SO_REUSEADDR | SO_REUSEPORT, &one, sizeof(one));
-    //auto error = strerror(errno); //errno;
+    // auto error = strerror(errno); //errno;
 
     while (true)
     {
         asio::ip::tcp::socket socket = co_await acceptor.async_accept();
-        co_spawn(executor, echo(std::move(socket), dispatch, buffer_pool), asio::detached);
+        co_spawn(executor, connection(std::move(socket), dispatch, buffer_pool), asio::detached);
     }
 }
 
