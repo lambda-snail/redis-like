@@ -1,5 +1,6 @@
 module;
 
+#include <atomic>
 #include <cassert>
 #include <functional>
 #include <future>
@@ -59,13 +60,7 @@ namespace LambdaSnail::server
     export class database
     {
     public:
-        explicit database(memory::buffer_allocator<char>& string_allocator) : m_string_allocator(string_allocator)
-        {
-            m_command_map.insert_or_assign("PING", [](){ return std::make_shared<ping_handler>(); });
-            m_command_map.insert_or_assign("ECHO", [](){ return std::make_shared<echo_handler>(); });
-            m_command_map.insert_or_assign("GET", [&store=m_store](){ return std::make_shared<get_handler>(store); });
-            m_command_map.insert_or_assign("SET", [&store=m_store](){ return std::make_shared<set_handler>(store); });
-        }
+        explicit database(memory::buffer_allocator<char>& string_allocator) : m_string_allocator(string_allocator) { }
         [[nodiscard]] std::string process_command(resp::data_view message);
 
     private:
@@ -73,7 +68,14 @@ namespace LambdaSnail::server
 
         store_t m_store{1000};
 
-        std::unordered_map<std::string_view, std::function<std::shared_ptr<ICommandHandler>()>> m_command_map;
+        // TODO: May need different structure for this when we can support multiple databases
+        tbb::concurrent_unordered_map<std::string_view, ICommandHandler* const> m_command_map
+        {
+            std::pair("PING", new ping_handler),
+            std::pair("ECHO", new echo_handler),
+            std::pair("GET", new get_handler{ m_store }),
+            std::pair("SET", new set_handler{ m_store }),
+        };
 
         std::shared_mutex m_mutex{};
     };
@@ -83,9 +85,6 @@ std::string LambdaSnail::server::database::process_command(resp::data_view messa
 {
     ZoneNamed(ProcessCommand, true);
 
-    // TODO: Think about: No need to lock as it's single-threaded? But doesn't seem to impact performance
-    //auto lock = std::unique_lock { m_mutex };
-
     auto const request = message.materialize(resp::Array{});
 
     if (request.size() == 0 or request[0].type != LambdaSnail::resp::data_type::BulkString)
@@ -94,14 +93,10 @@ std::string LambdaSnail::server::database::process_command(resp::data_view messa
     }
 
     auto const _1 = request[0].materialize(resp::BulkString{});
-    // get_handler cmd(m_store);
-    // return cmd.execute(request);
-
     auto const cmd_it = m_command_map.find(_1);
     if (cmd_it != m_command_map.end())
     {
-        auto const& factory_fn = cmd_it->second;
-        auto const command = factory_fn();
+        auto* const command = cmd_it->second;
         if (command)
         {
             std::string s = command->execute(request);
@@ -137,9 +132,8 @@ std::string LambdaSnail::server::get_handler::execute(std::vector<resp::data_vie
     {
         auto const key = std::string(args[1].materialize(resp::BulkString{}));
 
-        auto it = m_store.find(key);
+        auto const it = m_store.find(key);
         if (it != m_store.end())
-        //if(std::string value; m_store.find(key, value))
         {
             return it->second + "\r\n";
         }
@@ -155,9 +149,8 @@ std::string LambdaSnail::server::set_handler::execute(std::vector<resp::data_vie
     if (args.size() == 3)
     {
         auto const key = std::string(args[1].materialize(resp::BulkString{}));
-        auto const value = std::string(args[2].value); //request[2].materialize(resp::BulkString{});
+        auto const value = std::string(args[2].value);
 
-        //m_store.insert_or_assign(key, value);
         m_store[key] = value;
 
         return "+OK\r\n";
