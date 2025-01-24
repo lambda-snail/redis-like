@@ -2,13 +2,8 @@ module;
 
 #include <csignal>
 #include <iostream>
-#include <string>
 
-#include <spdlog/spdlog.h>
-#include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/sinks/daily_file_sink.h>
-#include <spdlog/cfg/argv.h>
-#include <spdlog/cfg/env.h>
 
 #include <tracy/Tracy.hpp>
 
@@ -26,6 +21,8 @@ int main(int argc, char const** argv)
 
     auto logger = std::make_shared<LambdaSnail::logging::logger>();
     logger->init_logger(argc, argv);
+
+    logger->get_system_logger()->info("The server is starting, the version is {}", LAMBDA_SNAIL_VERSION);
 
     LambdaSnail::memory::buffer_pool buffer_pool{};
     LambdaSnail::memory::buffer_allocator<char> allocator{buffer_pool};

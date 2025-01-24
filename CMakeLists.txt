@@ -2,9 +2,11 @@ cmake_minimum_required(VERSION 3.29)
 
 project(
     redis_like
-    VERSION "0.2.0"
+    VERSION "0.3.0"
     LANGUAGES CXX
 )
+
+add_compile_definitions(LAMBDA_SNAIL_VERSION="${CMAKE_PROJECT_VERSION}")
 
 set(CMAKE_CXX_SCAN_FOR_MODULES 1)
 set(CMAKE_CXX_STANDARD 23)
