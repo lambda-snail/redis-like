@@ -133,6 +133,8 @@ public:
 
             asio::co_spawn(m_context, listener(port, dispatch, buffer_pool), asio::detached);
 
+            m_context.run();
+
             // If we are using an asio::thread_pool, we should join here to wait for
             // asio to be done (i.e., server shutdown)
             // m_context.join();
