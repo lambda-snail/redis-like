@@ -8,5 +8,3 @@ target_sources(memory
 )
 
 add_library(LambdaSnail::memory ALIAS memory)
-
-#target_link_libraries(memory PRIVATE concurrentqueue)

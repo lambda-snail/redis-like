@@ -30,9 +30,6 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" OR "${CMAKE_CXX_COMPILER_ID}" ST
     endif()
 endif()
 
-target_include_directories(redis-like PUBLIC ${readerwriterqueue_SOURCE_DIR})
-target_include_directories(redis-like PUBLIC ${concurrentqueue_SOURCE_DIR})
-
 target_link_libraries(redis-like
         PRIVATE
         asio
