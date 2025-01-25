@@ -235,13 +235,14 @@ profile_constexpr std::string_view LambdaSnail::resp::data_view::materialize(Bul
         return {};
     }
 
+    // Skip the \r\n
     ++cursor;
     ++cursor;
 
-    auto end = value.begin();
+    auto end = cursor;
     std::advance(end, static_cast<std::iter_difference_t<std::string_view>>(length));
 
-    return { value.begin(), end };
+    return { cursor, end };
 }
 
 profile_constexpr std::vector<LambdaSnail::resp::data_view> LambdaSnail::resp::data_view::materialize(Array) const
