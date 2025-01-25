@@ -19,8 +19,20 @@ import resp;
 
 namespace LambdaSnail::server
 {
-    //using store_t = std::unordered_map<std::string, std::string>; // TODO: Should be string!!! ?
-    using store_t = tbb::concurrent_unordered_map<std::string, std::string>;
+    export struct value_info
+    {
+        uint32_t version{};
+        std::string data;
+        std::chrono::time_point<std::chrono::system_clock> timeout{};
+
+        [[nodiscard]] bool has_timeout() const
+        {
+            return timeout == std::chrono::time_point<std::chrono::system_clock>::min();
+        }
+    };
+
+    //using store_t = std::unordered_map<std::string, std::shared_ptr<struct value_info>>; // TODO: Should be string!!! ?
+    using store_t = tbb::concurrent_unordered_map<std::string, std::shared_ptr<value_info>>;
 
     struct ICommandHandler
     {
@@ -40,22 +52,24 @@ namespace LambdaSnail::server
         ~echo_handler() override = default;
     };
 
+    template<typename TDatabase>
     struct get_handler final : public ICommandHandler
     {
-        explicit get_handler(store_t& store) : m_store(store) {}
+        explicit get_handler(TDatabase& database) : m_database(database) {}
         [[nodiscard]] std::string execute(std::vector<resp::data_view> const& args) noexcept override;
         ~get_handler() override = default;
     private:
-        store_t& m_store;
+        TDatabase& m_database;
     };
 
+    template<typename TDatabase>
     struct set_handler final : public ICommandHandler
     {
-        explicit set_handler(store_t& store) : m_store(store) {}
+        explicit set_handler(TDatabase& database) : m_database(database) {}
         [[nodiscard]] std::string execute(std::vector<resp::data_view> const& args) noexcept override;
         ~set_handler() override = default;
     private:
-        store_t& m_store;
+        TDatabase& m_database;
     };
 
     export class database
@@ -63,6 +77,10 @@ namespace LambdaSnail::server
     public:
         explicit database(memory::buffer_allocator<char>& string_allocator) : m_string_allocator(string_allocator) { }
         [[nodiscard]] std::string process_command(resp::data_view message);
+
+        [[nodiscard]] std::shared_ptr<value_info> get_value(std::string const& key) const;
+
+        void set_value(std::string const& key, std::string_view value);
 
     private:
         memory::buffer_allocator<char>& m_string_allocator;
@@ -74,11 +92,17 @@ namespace LambdaSnail::server
         {
             std::pair("PING", new ping_handler),
             std::pair("ECHO", new echo_handler),
-            std::pair("GET", new get_handler{ m_store }),
-            std::pair("SET", new set_handler{ m_store }),
+            std::pair("GET", new get_handler<database>{ *this }),
+            std::pair("SET", new set_handler<database>{ *this }),
         };
 
-        std::shared_mutex m_mutex{};
+        /**
+         * The key-value store is a concurrent queue, so is "safe" to access from multiple threads,
+         * but we may periodically wish to perform maintenance work on the database, such as expire
+         * key etc. In those cases the shared mutex allows us to lock the entire map for a short
+         * duration.
+         */
+        mutable std::shared_mutex m_mutex{};
     };
 }
 
@@ -108,6 +132,28 @@ std::string LambdaSnail::server::database::process_command(resp::data_view messa
     return { "-Unable to find command\r\n" };
 }
 
+std::shared_ptr<LambdaSnail::server::value_info> LambdaSnail::server::database::get_value(std::string const &key) const
+{
+    auto lock = std::shared_lock{ m_mutex };
+
+    auto const it = m_store.find(key);
+    return (it == m_store.end()) ? nullptr : it->second;
+}
+
+void LambdaSnail::server::database::set_value(std::string const &key, std::string_view value)
+{
+    auto lock = std::shared_lock{ m_mutex };
+
+    auto const it = m_store.find(key);
+    std::shared_ptr<value_info> const value_wrapper = (it == m_store.end()) ? std::make_shared<value_info>() : it->second;
+
+    value_wrapper->data = std::string(value);
+    ++value_wrapper->version = 99; // TODO: Assign random value?
+
+    m_store[key] = value_wrapper;
+}
+
+
 std::string LambdaSnail::server::ping_handler::execute(std::vector<resp::data_view> const& args) noexcept
 {
     ZoneScoped;
@@ -125,7 +171,8 @@ std::string LambdaSnail::server::echo_handler::execute(std::vector<resp::data_vi
     return "$" + std::to_string(str.size()) + "\r\n" + std::string(str.data(), str.size()) + "\r\n";
 }
 
-std::string LambdaSnail::server::get_handler::execute(std::vector<resp::data_view> const& args) noexcept
+template<typename TDatabase>
+std::string LambdaSnail::server::get_handler<TDatabase>::execute(std::vector<resp::data_view> const& args) noexcept
 {
     ZoneScoped;
 
@@ -133,26 +180,28 @@ std::string LambdaSnail::server::get_handler::execute(std::vector<resp::data_vie
     {
         auto const key = std::string(args[1].materialize(resp::BulkString{}));
 
-        auto const it = m_store.find(key);
-        if (it != m_store.end())
+        auto value = m_database.get_value(std::move(key));
+        if (value)
         {
-            return it->second + "\r\n";
+            return value->data + "\r\n";
         }
     }
 
     return "_\r\n";
 }
 
-std::string LambdaSnail::server::set_handler::execute(std::vector<resp::data_view> const &args) noexcept
+template<typename TDatabase>
+std::string LambdaSnail::server::set_handler<TDatabase>::execute(std::vector<resp::data_view> const &args) noexcept
 {
     ZoneScoped;
 
     if (args.size() == 3)
     {
         auto const key = std::string(args[1].materialize(resp::BulkString{}));
-        auto const value = std::string(args[2].value);
+        //auto value = std::string(args[2].value);
+        auto value = args[2].value;
 
-        m_store[key] = value;
+        m_database.set_value(key, value);
 
         return "+OK\r\n";
     }
