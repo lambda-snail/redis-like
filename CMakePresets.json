@@ -8,24 +8,15 @@
   "configurePresets": [
     {
       "hidden": true,
-      "name": "jetbrains-linux-base",
-      "displayName": "Debug (Tracy)",
-      "generator": "Ninja",
-      "vendor": {
-        "jetbrains.com/clion": {
-          "toolchain": "Clang"
-        }
-      },
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Linux"
-      }
+      "name": "base-all",
+      "displayName": "Base Settings All",
+      "generator": "Ninja"
     },
     {
-      "name": "debug",
-      "displayName": "Debug",
-      "inherits": "jetbrains-linux-base",
+      "name": "debug-base",
+      "displayName": "Debug Base",
+      "hidden": true,
+      "inherits": "base-all",
       "description": "Debug build with tests and sanitizers enabled",
       "binaryDir": "${sourceDir}/build/debug",
       "cacheVariables": {
@@ -38,9 +29,10 @@
       }
     },
     {
-      "name": "debug-tracy",
-      "displayName": "Debug (Tracy)",
-      "inherits": "jetbrains-linux-base",
+      "name": "debug-tracy-base",
+      "displayName": "Debug (Tracy) Base",
+      "hidden": true,
+      "inherits": "base-all",
       "description": "Debug build with Tracy enabled, for profiling performance",
       "binaryDir": "${sourceDir}/build/debug-tracy",
       "cacheVariables": {
@@ -53,9 +45,10 @@
       }
     },
     {
-      "name": "release-sanitized",
-      "displayName": "Release (Sanitized)",
-      "inherits": "jetbrains-linux-base",
+      "name": "release-sanitized-base",
+      "displayName": "Release (Sanitized) Base",
+      "hidden": true,
+      "inherits": "base-all",
       "description": "Release Build with sanitizers turned on",
       "binaryDir": "${sourceDir}/build/release-sanitized",
       "cacheVariables": {
@@ -69,9 +62,10 @@
       }
     },
     {
-      "name": "release",
-      "displayName": "Release",
-      "inherits": "jetbrains-linux-base",
+      "name": "release-base",
+      "displayName": "Release Base",
+      "hidden": true,
+      "inherits": "base-all",
       "description": "Release Build",
       "binaryDir": "${sourceDir}/build/release",
       "cacheVariables": {
@@ -83,30 +77,113 @@
         "SANITIZE_UB": "OFF",
         "CMAKE_BUILD_TYPE": "Release"
       }
+    },
+
+    {
+      "name": "debug-clang",
+      "displayName": "Debug Clang",
+      "inherits": "debug-base",
+      "vendor": {
+        "jetbrains.com/clion": {
+          "toolchain": "Clang"
+        }
+      }
+    },
+    {
+      "name": "debug-tracy-clang",
+      "displayName": "Debug (Tracy) Windows",
+      "inherits": "debug-tracy-base",
+      "vendor": {
+        "jetbrains.com/clion": {
+          "toolchain": "Clang"
+        }
+      }
+    },
+    {
+      "name": "release-sanitized-clang",
+      "displayName": "Release (Sanitized) Clang",
+      "inherits": "release-sanitized-base",
+      "vendor": {
+        "jetbrains.com/clion": {
+          "toolchain": "Clang"
+        }
+      }
+    },
+    {
+      "name": "release-clang",
+      "displayName": "Release Clang",
+      "inherits": "release-base",
+      "vendor": {
+        "jetbrains.com/clion": {
+          "toolchain": "Clang"
+        }
+      }
+    },
+    {
+      "name": "debug-windows",
+      "displayName": "Debug Windows",
+      "inherits": "debug-base",
+      "vendor": {
+        "jetbrains.com/clion": {
+          "toolchain": "Visual Studio"
+        }
+      }
+    },
+    {
+      "name": "debug-tracy-windows",
+      "displayName": "Debug (Tracy) Windows",
+      "inherits": "debug-tracy-base",
+      "vendor": {
+        "jetbrains.com/clion": {
+          "toolchain": "Visual Studio"
+        }
+      }
+    },
+    {
+      "name": "release-windows",
+      "displayName": "Release Windows",
+      "inherits": "release-base",
+      "vendor": {
+        "jetbrains.com/clion": {
+          "toolchain": "Visual Studio"
+        }
+      }
     }
   ],
   "buildPresets": [
     {
-      "name": "debug",
-      "configurePreset": "debug"
+      "name": "debug-clang",
+      "configurePreset": "debug-clang"
     },
     {
-      "name": "debug-tracy",
-      "configurePreset": "debug-tracy"
+      "name": "debug-windows",
+      "configurePreset": "debug-windows"
     },
     {
-      "name": "release",
-      "configurePreset": "release"
+      "name": "debug-tracy-clang",
+      "configurePreset": "debug-tracy-clang"
     },
     {
-      "name": "release-sanitized",
-      "configurePreset": "release-sanitized"
+      "name": "debug-tracy-windows",
+      "configurePreset": "debug-tracy-windows"
+    },
+    {
+      "name": "release-sanitized-clang",
+      "configurePreset": "release-sanitized-clang"
+    },
+    {
+      "name": "release-clang",
+      "configurePreset": "release-clang"
+    },
+    {
+      "name": "release-windows",
+      "configurePreset": "release-windows"
     }
   ],
   "testPresets": [
     {
       "name": "tests",
-      "configurePreset": "release",
+      "configurePreset": "release-clang",
       "output": {
         "outputOnFailure": true
       },
