@@ -16,9 +16,9 @@ namespace LambdaSnail::logging
 
         void init_logger(int argc, char const** argv);
 
-        [[nodiscard]] std::shared_ptr<spdlog::logger>& get_system_logger();
-        [[nodiscard]] std::shared_ptr<spdlog::logger>& get_network_logger();
-        [[nodiscard]] std::shared_ptr<spdlog::logger>& get_request_logger();
+        [[nodiscard]] std::shared_ptr<spdlog::logger> get_system_logger();
+        [[nodiscard]] std::shared_ptr<spdlog::logger> get_network_logger();
+        [[nodiscard]] std::shared_ptr<spdlog::logger> get_request_logger();
 
         ~logger();
     private:
@@ -27,17 +27,17 @@ namespace LambdaSnail::logging
         std::shared_ptr<spdlog::logger> m_network_logger;
     };
 
-    std::shared_ptr<spdlog::logger>& logger::get_system_logger()
+    std::shared_ptr<spdlog::logger> logger::get_system_logger()
     {
         return m_system_logger;
     }
 
-    std::shared_ptr<spdlog::logger> & logger::get_network_logger()
+    std::shared_ptr<spdlog::logger> logger::get_network_logger()
     {
         return m_network_logger;
     }
 
-    std::shared_ptr<spdlog::logger> & logger::get_request_logger()
+    std::shared_ptr<spdlog::logger> logger::get_request_logger()
     {
         return m_request_logger;
     }
