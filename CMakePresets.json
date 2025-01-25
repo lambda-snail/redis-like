@@ -123,6 +123,7 @@
       "name": "debug-windows",
       "displayName": "Debug Windows",
       "inherits": "debug-base",
+      "generator": "Visual Studio 17 2022",
       "vendor": {
         "jetbrains.com/clion": {
           "toolchain": "Visual Studio"
@@ -133,6 +134,7 @@
       "name": "debug-tracy-windows",
       "displayName": "Debug (Tracy) Windows",
       "inherits": "debug-tracy-base",
+      "generator": "Visual Studio 17 2022",
       "vendor": {
         "jetbrains.com/clion": {
           "toolchain": "Visual Studio"
@@ -143,6 +145,7 @@
       "name": "release-windows",
       "displayName": "Release Windows",
       "inherits": "release-base",
+      "generator": "Visual Studio 17 2022",
       "vendor": {
         "jetbrains.com/clion": {
           "toolchain": "Visual Studio"
