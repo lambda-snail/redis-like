@@ -91,9 +91,11 @@ asio::awaitable<void> listener(
     auto executor = co_await asio::this_coro::executor;
     tcp_acceptor_t acceptor(executor, {asio::ip::tcp::v4(), port});
 
+#ifndef _WIN32
     acceptor.set_option(asio::ip::tcp::acceptor::reuse_address(true));
     typedef asio::detail::socket_option::boolean<SOL_SOCKET, SO_REUSEPORT> reuse_port;
     acceptor.set_option(reuse_port(true));
+#endif
 
     // int one = 1;
     // auto result = setsockopt(acceptor.native_handle(), SOL_SOCKET /*SOL_SOCKET*/, SO_REUSEADDR | SO_REUSEPORT, &one, sizeof(one));
@@ -123,15 +125,20 @@ public:
             asio::signal_set signal_set{m_context};
             signal_set.add(SIGINT);
             signal_set.add(SIGTERM);
+#if defined(SIGHUP)
             signal_set.add(SIGHUP);
+#endif
 #if defined(SIGQUIT)
             signal_set.add(SIGQUIT);
 #endif
             signal_set.async_wait(
                 [&](std::error_code ec, int signal)
                 {
-                    m_logger->get_system_logger()->
-                            info("The system received signal {} - {}", signal, strsignal(signal));
+#ifndef _WIN32
+                    m_logger->get_system_logger()->info("The system received signal {} - {}", signal, strsignal(signal));
+#else
+                    m_logger->get_system_logger()->info("The system received signal {}", signal);
+#endif
                     m_context.stop();
                 });
 

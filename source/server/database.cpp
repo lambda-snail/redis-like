@@ -5,6 +5,7 @@ module;
 #include <functional>
 #include <future>
 #include <shared_mutex>
+#include <string>
 #include <unordered_map>
 
 #include "oneapi/tbb/concurrent_unordered_map.h"

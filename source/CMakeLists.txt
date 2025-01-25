@@ -32,7 +32,7 @@ endif()
 
 target_link_libraries(redis-like
         PRIVATE
-        asio
+#        asio
 
         LambdaSnail::resp
         LambdaSnail::networking
