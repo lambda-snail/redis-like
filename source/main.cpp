@@ -3,8 +3,6 @@ module;
 #include <csignal>
 #include <iostream>
 
-#include <spdlog/sinks/daily_file_sink.h>
-
 #include <tracy/Tracy.hpp>
 
 export module main;
