@@ -92,18 +92,20 @@ asio::awaitable<void> listener(
     tcp_acceptor_t acceptor(executor, {asio::ip::tcp::v4(), port});
 
 #ifndef _WIN32
-    acceptor.set_option(asio::ip::tcp::acceptor::reuse_address(true));
-    typedef asio::detail::socket_option::boolean<SOL_SOCKET, SO_REUSEPORT> reuse_port;
-    acceptor.set_option(reuse_port(true));
+    // acceptor.set_option(asio::ip::tcp::acceptor::reuse_address(true));
+    // typedef asio::detail::socket_option::boolean<SOL_SOCKET, SO_REUSEPORT> reuse_port;
+    // acceptor.set_option(reuse_port(true));
 #endif
-
-    // int one = 1;
-    // auto result = setsockopt(acceptor.native_handle(), SOL_SOCKET /*SOL_SOCKET*/, SO_REUSEADDR | SO_REUSEPORT, &one, sizeof(one));
-    // auto error = strerror(errno); //errno;
 
     while (true)
     {
-        asio::ip::tcp::socket socket = co_await acceptor.async_accept();
+        auto [ec, socket] = co_await acceptor.async_accept(asio::as_tuple(asio::use_awaitable));
+        if (ec)
+        {
+            logger->get_network_logger()->error("Error listening for connections: {}", ec.message());
+            break;
+        }
+
         co_spawn(executor, connection(std::move(socket), dispatch, buffer_pool, logger), asio::detached);
     }
 }
