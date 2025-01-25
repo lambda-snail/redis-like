@@ -29,7 +29,7 @@
       "description": "Debug build with tests and sanitizers enabled",
       "binaryDir": "${sourceDir}/build/debug",
       "cacheVariables": {
-        "USE_TRACY": "OFF",
+        "TRACY_ENABLE": "OFF",
         "BUILD_TESTS": "ON",
         "SANITIZE_THREAD": "ON",
         "SANITIZE_MEMORY": "OFF",
@@ -44,7 +44,7 @@
       "description": "Debug build with Tracy enabled, for profiling performance",
       "binaryDir": "${sourceDir}/build/debug-tracy",
       "cacheVariables": {
-        "USE_TRACY": "ON",
+        "TRACY_ENABLE": "ON",
         "BUILD_TESTS": "OFF",
         "SANITIZE_THREAD": "OFF",
         "SANITIZE_MEMORY": "OFF",
@@ -59,6 +59,7 @@
       "description": "Release Build with sanitizers turned on",
       "binaryDir": "${sourceDir}/build/release-sanitized",
       "cacheVariables": {
+        "TRACY_ENABLE": "OFF",
         "USE_TRACY": "OFF",
         "BUILD_TESTS": "ON",
         "SANITIZE_THREAD": "ON",
@@ -74,6 +75,7 @@
       "description": "Release Build",
       "binaryDir": "${sourceDir}/build/release",
       "cacheVariables": {
+        "TRACY_ENABLE": "OFF",
         "USE_TRACY": "OFF",
         "BUILD_TESTS": "OFF",
         "SANITIZE_THREAD": "OFF",

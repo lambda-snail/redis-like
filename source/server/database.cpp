@@ -1,11 +1,13 @@
 module;
 
+#include <atomic>
+#include <cassert>
+#include <functional>
 #include <future>
 #include <shared_mutex>
-#include <thread>
 #include <unordered_map>
 
-#include "libcuckoo/cuckoohash_map.hh"
+#include "oneapi/tbb/concurrent_unordered_map.h"
 
 #include <tracy/Tracy.hpp>
 
@@ -16,39 +18,40 @@ import resp;
 
 namespace LambdaSnail::server
 {
-    using store_t = libcuckoo::cuckoohash_map<std::string_view, std::string>;
+    //using store_t = std::unordered_map<std::string, std::string>; // TODO: Should be string!!! ?
+    using store_t = tbb::concurrent_unordered_map<std::string, std::string>;
 
     struct ICommandHandler
     {
-        [[nodiscard]] virtual std::string execute(std::vector<resp::data_view> const& args) const noexcept = 0;
+        [[nodiscard]] virtual std::string execute(std::vector<resp::data_view> const& args) noexcept = 0;
         virtual ~ICommandHandler() = default;
     };
 
     struct ping_handler final : public ICommandHandler
     {
-        [[nodiscard]] std::string execute(std::vector<resp::data_view> const& args) const noexcept override;
+        [[nodiscard]] std::string execute(std::vector<resp::data_view> const& args) noexcept override;
         ~ping_handler() override = default;
     };
 
     struct echo_handler final : public ICommandHandler
     {
-        [[nodiscard]] std::string execute(std::vector<resp::data_view> const& args) const noexcept override;
+        [[nodiscard]] std::string execute(std::vector<resp::data_view> const& args) noexcept override;
         ~echo_handler() override = default;
     };
 
     struct get_handler final : public ICommandHandler
     {
-        explicit get_handler(store_t const& store) : m_store(store) {}
-        [[nodiscard]] std::string execute(std::vector<resp::data_view> const& args) const noexcept override;
+        explicit get_handler(store_t& store) : m_store(store) {}
+        [[nodiscard]] std::string execute(std::vector<resp::data_view> const& args) noexcept override;
         ~get_handler() override = default;
     private:
-        store_t const& m_store;
+        store_t& m_store;
     };
 
     struct set_handler final : public ICommandHandler
     {
         explicit set_handler(store_t& store) : m_store(store) {}
-        [[nodiscard]] std::string execute(std::vector<resp::data_view> const& args) const noexcept override;
+        [[nodiscard]] std::string execute(std::vector<resp::data_view> const& args) noexcept override;
         ~set_handler() override = default;
     private:
         store_t& m_store;
@@ -57,7 +60,7 @@ namespace LambdaSnail::server
     export class database
     {
     public:
-        explicit database(memory::buffer_allocator<char>& string_allocator) : m_string_allocator(string_allocator) {}
+        explicit database(memory::buffer_allocator<char>& string_allocator) : m_string_allocator(string_allocator) { }
         [[nodiscard]] std::string process_command(resp::data_view message);
 
     private:
@@ -65,13 +68,16 @@ namespace LambdaSnail::server
 
         store_t m_store{1000};
 
-        std::unordered_map<std::string_view, ICommandHandler const*> m_command_map
+        // TODO: May need different structure for this when we can support multiple databases
+        tbb::concurrent_unordered_map<std::string_view, ICommandHandler* const> m_command_map
         {
-            { "PING", new ping_handler },
-            { "ECHO", new echo_handler },
-            { "GET", new get_handler{ m_store } },
-            { "SET", new set_handler{ m_store } }
+            std::pair("PING", new ping_handler),
+            std::pair("ECHO", new echo_handler),
+            std::pair("GET", new get_handler{ m_store }),
+            std::pair("SET", new set_handler{ m_store }),
         };
+
+        std::shared_mutex m_mutex{};
     };
 }
 
@@ -90,10 +96,10 @@ std::string LambdaSnail::server::database::process_command(resp::data_view messa
     auto const cmd_it = m_command_map.find(_1);
     if (cmd_it != m_command_map.end())
     {
-        auto const* cmd = cmd_it->second;
-        if (cmd)
+        auto* const command = cmd_it->second;
+        if (command)
         {
-            std::string s = cmd->execute(request);
+            std::string s = command->execute(request);
             return s;
         }
     }
@@ -101,7 +107,7 @@ std::string LambdaSnail::server::database::process_command(resp::data_view messa
     return { "-Unable to find command\r\n" };
 }
 
-std::string LambdaSnail::server::ping_handler::execute(std::vector<resp::data_view> const& args) const noexcept
+std::string LambdaSnail::server::ping_handler::execute(std::vector<resp::data_view> const& args) noexcept
 {
     ZoneScoped;
 
@@ -109,7 +115,7 @@ std::string LambdaSnail::server::ping_handler::execute(std::vector<resp::data_vi
     return "+PONG\r\n";
 }
 
-std::string LambdaSnail::server::echo_handler::execute(std::vector<resp::data_view> const& args) const noexcept
+std::string LambdaSnail::server::echo_handler::execute(std::vector<resp::data_view> const& args) noexcept
 {
     ZoneScoped;
 
@@ -118,32 +124,35 @@ std::string LambdaSnail::server::echo_handler::execute(std::vector<resp::data_vi
     return "$" + std::to_string(str.size()) + "\r\n" + std::string(str.data(), str.size()) + "\r\n";
 }
 
-std::string LambdaSnail::server::get_handler::execute(std::vector<resp::data_view> const& args) const noexcept
+std::string LambdaSnail::server::get_handler::execute(std::vector<resp::data_view> const& args) noexcept
 {
     ZoneScoped;
 
     if (args.size() == 2)
     {
-        auto const key = args[1].materialize(resp::BulkString{});
-        if(std::string value; m_store.find(key, value))
+        auto const key = std::string(args[1].materialize(resp::BulkString{}));
+
+        auto const it = m_store.find(key);
+        if (it != m_store.end())
         {
-            return value + "\r\n";
+            return it->second + "\r\n";
         }
     }
 
     return "_\r\n";
 }
 
-std::string LambdaSnail::server::set_handler::execute(std::vector<resp::data_view> const &args) const noexcept
+std::string LambdaSnail::server::set_handler::execute(std::vector<resp::data_view> const &args) noexcept
 {
     ZoneScoped;
 
     if (args.size() == 3)
     {
-        auto const key = args[1].materialize(resp::BulkString{});
-        auto const value = args[2].value; //request[2].materialize(resp::BulkString{});
-        //m_store.emplace(std::string(key.begin(), key.end()), std::string(value.begin(), value.end()));
-        m_store.insert_or_assign(key, value);
+        auto const key = std::string(args[1].materialize(resp::BulkString{}));
+        auto const value = std::string(args[2].value);
+
+        m_store[key] = value;
+
         return "+OK\r\n";
     }
 

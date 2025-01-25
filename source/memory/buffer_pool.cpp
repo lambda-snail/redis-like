@@ -11,6 +11,8 @@ export module memory: memory.buffer_pool;
 
 namespace LambdaSnail::memory
 {
+    // TODO: RAII enable: make it call release?
+    // (but then we need to prevent copying? Maybe better to use a shared_ptr with custom deallocator?)
     export struct buffer_info
     {
         char* buffer{};
