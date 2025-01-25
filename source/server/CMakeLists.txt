@@ -6,6 +6,7 @@ target_sources(server
         FILE_SET CXX_MODULES FILES
         server.cppm
         database.cpp
+        timeout_worker.cpp
 )
 
 add_library(LambdaSnail::server ALIAS server)

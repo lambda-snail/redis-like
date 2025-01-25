@@ -12,7 +12,7 @@ module;
 
 #include <tracy/Tracy.hpp>
 
-export module server: resp.commands; // Move to resp module?
+export module server: database; // Move to resp module?
 
 import memory;
 import resp;
