@@ -40,6 +40,8 @@ endif()
 
 target_link_libraries(redis-like
         PRIVATE
+        asio
+
         LambdaSnail::resp
         LambdaSnail::networking
         LambdaSnail::server
