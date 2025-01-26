@@ -39,8 +39,6 @@ int main(int argc, char const** argv)
     auto options = add_arguments(app, argc, argv);
     CLI11_PARSE(app, argc, argv);
 
-    return 0;
-
     auto logger = std::make_shared<LambdaSnail::logging::logger>();
     logger->init_logger(argc, argv);
 

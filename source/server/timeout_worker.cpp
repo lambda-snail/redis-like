@@ -3,9 +3,9 @@ module;
 #include <chrono>
 #include <queue>
 
-export module server: timeout_worker;
+module server;
 
-import :database;
+//import :database;
 
 namespace LambdaSnail::server
 {
@@ -23,7 +23,7 @@ namespace LambdaSnail::server
         return ttl_time_stamp < other.ttl_time_stamp;
     }
 
-    export class timeout_worker
+    class timeout_worker
     {
         // Priority heap of time stamps
         // The data needs time stamp, database id, key, and key version

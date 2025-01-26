@@ -1,10 +1,12 @@
-#find_package(Boost 1.83 REQUIRED)
-
 add_library(server)
 target_sources(server
         PUBLIC
         FILE_SET CXX_MODULES FILES
         server.cppm
+)
+
+target_sources(server
+        PRIVATE
         database.cpp
         timeout_worker.cpp
 )
