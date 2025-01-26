@@ -9,6 +9,7 @@ module;
 #include <charconv>
 #include <iomanip>
 
+#include "oneapi/tbb/concurrent_set.h"
 #include "oneapi/tbb/concurrent_unordered_map.h"
 
 #include <tracy/Tracy.hpp>
@@ -155,6 +156,11 @@ namespace LambdaSnail::server
         TDatabase &m_database;
     };
 
+    bool entry_info::has_ttl() const
+    {
+        return ttl != std::chrono::time_point<std::chrono::system_clock>::min();
+    }
+
     database::database(memory::buffer_allocator<char> &string_allocator) : m_string_allocator(string_allocator)
     {
         m_command_map =
@@ -194,7 +200,7 @@ std::string LambdaSnail::server::database::process_command(resp::data_view messa
     return {"-Unable to find command\r\n"};
 }
 
-std::shared_ptr<LambdaSnail::server::entry_info> LambdaSnail::server::database::get_value(std::string const &key)
+std::shared_ptr<LambdaSnail::server::entry_info> LambdaSnail::server::database::get_value(std::string const& key)
 {
     auto lock = std::shared_lock{m_mutex};
 
@@ -204,12 +210,18 @@ std::shared_ptr<LambdaSnail::server::entry_info> LambdaSnail::server::database::
         return nullptr;
     }
 
-    if (it->second->has_timeout())
+    if (it->second->has_ttl())
     {
         std::chrono::time_point<std::chrono::system_clock> now = std::chrono::system_clock::now();
         if (it->second->ttl < now)
         {
             m_store.unsafe_erase(it);
+            auto num_erased = m_ttl_keys.unsafe_erase(key);
+            if (num_erased == 0)
+            {
+                // TODO: Error handling
+            }
+
             return nullptr;
         }
     }
@@ -217,7 +229,7 @@ std::shared_ptr<LambdaSnail::server::entry_info> LambdaSnail::server::database::
     return it->second;
 }
 
-void LambdaSnail::server::database::set_value(std::string const &key, std::string_view value,
+void LambdaSnail::server::database::set_value(std::string const& key, std::string_view value,
                                               std::chrono::time_point<std::chrono::system_clock> ttl)
 {
     auto lock = std::shared_lock{m_mutex};
@@ -227,13 +239,26 @@ void LambdaSnail::server::database::set_value(std::string const &key, std::strin
                                                           ? std::make_shared<entry_info>()
                                                           : it->second;
 
+    bool const had_ttl = value_wrapper->has_ttl();
+
     value_wrapper->data = std::string(value);
     ++value_wrapper->version;
     value_wrapper->ttl = ttl;
 
+    // If we don't have ttl before or after, or if we have ttl both
+    // before and after insert, there is no need to query the ttl keys again
+    if (had_ttl and not value_wrapper->has_ttl())
+    {
+        auto num_erased = m_ttl_keys.unsafe_erase(key);
+        assert(num_erased);
+    }
+    else if (not had_ttl and value_wrapper->has_ttl())
+    {
+        m_ttl_keys.insert(key);
+    }
+
     m_store[key] = value_wrapper;
 }
-
 
 std::string LambdaSnail::server::ping_handler::execute(std::vector<resp::data_view> const &args) noexcept
 {

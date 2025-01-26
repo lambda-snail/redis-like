@@ -1,15 +1,15 @@
 module;
 
 #include <atomic>
-#include <functional>
+#include <thread>
 #include <future>
 #include <shared_mutex>
 #include <string>
 
 #include "oneapi/tbb/concurrent_unordered_map.h"
+#include "oneapi/tbb/concurrent_set.h"
 
 export module server;
-//export import :timeout_worker;
 
 import memory;
 import resp;
@@ -19,15 +19,10 @@ namespace LambdaSnail::server
     struct entry_info
     {
         typedef uint32_t version_t;
-
-        version_t version{};
         std::string data;
+        version_t version{};
         std::chrono::time_point<std::chrono::system_clock> ttl{};
-
-        [[nodiscard]] bool has_timeout() const
-        {
-            return ttl != std::chrono::time_point<std::chrono::system_clock>::min();
-        }
+        [[nodiscard]] bool has_ttl() const;
     };
 
     //using store_t = std::unordered_map<std::string, std::shared_ptr<struct value_info>>; // TODO: Should be string!!! ?
@@ -45,6 +40,7 @@ namespace LambdaSnail::server
         explicit database(memory::buffer_allocator<char>& string_allocator);
         [[nodiscard]] std::string process_command(resp::data_view message);
 
+        // TODO: should probably return a variant or expected so we acn return an error as well
         [[nodiscard]] std::shared_ptr<entry_info> get_value(std::string const& key);
 
         void set_value(std::string const& key, std::string_view value, std::chrono::time_point<std::chrono::system_clock> ttl = {});
@@ -53,6 +49,11 @@ namespace LambdaSnail::server
         memory::buffer_allocator<char>& m_string_allocator;
 
         store_t m_store{1000};
+
+        /**
+         * Keys with expiry are stored here as well. The actual expiry information
+         */
+        tbb::concurrent_set<std::string> m_ttl_keys;
 
         // TODO: May need different structure for this when we can support multiple databases
         tbb::concurrent_unordered_map<std::string_view, ICommandHandler* const> m_command_map;
@@ -64,5 +65,25 @@ namespace LambdaSnail::server
          * duration.
          */
         mutable std::shared_mutex m_mutex{};
+    };
+
+    /**
+     * The timeout worker is the mechanism for active expiry of keys. At periodic intervals
+     * it will test some random keys in the databases and if they are expired, remove them.
+     */
+    export class timeout_worker
+    {
+        // Periodically test a few keys from each database
+        // Can we efficiently store keys that have timestamps?
+    public:
+        void do_work();
+
+        void add_database(std::shared_ptr<database> database);
+        //void remove_database(std::shared_ptr<database> database);
+
+        ~timeout_worker();
+    private:
+        //tbb::concurrent_vector<std::shared_ptr<database>> m_databases;
+        std::thread m_worker_thread;
     };
 }

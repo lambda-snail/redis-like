@@ -1,7 +1,6 @@
 module;
 
 #include <csignal>
-#include <iostream>
 
 #include <tracy/Tracy.hpp>
 
