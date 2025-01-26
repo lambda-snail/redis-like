@@ -6,7 +6,8 @@ module;
 #include <future>
 #include <shared_mutex>
 #include <string>
-#include <unordered_map>
+#include <charconv>
+#include <iomanip>
 
 #include "oneapi/tbb/concurrent_unordered_map.h"
 
@@ -29,7 +30,7 @@ namespace LambdaSnail::server
 
         [[nodiscard]] bool has_timeout() const
         {
-            return ttl == std::chrono::time_point<std::chrono::system_clock>::min();
+            return ttl != std::chrono::time_point<std::chrono::system_clock>::min();
         }
     };
 
@@ -80,9 +81,9 @@ namespace LambdaSnail::server
         explicit database(memory::buffer_allocator<char>& string_allocator) : m_string_allocator(string_allocator) { }
         [[nodiscard]] std::string process_command(resp::data_view message);
 
-        [[nodiscard]] std::shared_ptr<entry_info> get_value(std::string const& key) const;
+        [[nodiscard]] std::shared_ptr<entry_info> get_value(std::string const& key);
 
-        void set_value(std::string const& key, std::string_view value);
+        void set_value(std::string const& key, std::string_view value, std::chrono::time_point<std::chrono::system_clock> ttl = {});
 
     private:
         memory::buffer_allocator<char>& m_string_allocator;
@@ -134,15 +135,30 @@ std::string LambdaSnail::server::database::process_command(resp::data_view messa
     return { "-Unable to find command\r\n" };
 }
 
-std::shared_ptr<LambdaSnail::server::entry_info> LambdaSnail::server::database::get_value(std::string const &key) const
+std::shared_ptr<LambdaSnail::server::entry_info> LambdaSnail::server::database::get_value(std::string const &key)
 {
     auto lock = std::shared_lock{ m_mutex };
 
     auto const it = m_store.find(key);
-    return (it == m_store.end()) ? nullptr : it->second;
+    if (it == m_store.end())
+    {
+        return nullptr;
+    }
+
+    if (it->second->has_timeout())
+    {
+        std::chrono::time_point<std::chrono::system_clock> now = std::chrono::system_clock::now();
+        if (it->second->ttl < now)
+        {
+            m_store.unsafe_erase(it);
+            return nullptr;
+        }
+    }
+
+    return it->second;
 }
 
-void LambdaSnail::server::database::set_value(std::string const &key, std::string_view value)
+void LambdaSnail::server::database::set_value(std::string const &key, std::string_view value, std::chrono::time_point<std::chrono::system_clock> ttl)
 {
     auto lock = std::shared_lock{ m_mutex };
 
@@ -150,7 +166,8 @@ void LambdaSnail::server::database::set_value(std::string const &key, std::strin
     std::shared_ptr<entry_info> const value_wrapper = (it == m_store.end()) ? std::make_shared<entry_info>() : it->second;
 
     value_wrapper->data = std::string(value);
-    ++value_wrapper->version = 99; // TODO: Assign random value?
+    ++value_wrapper->version;
+    value_wrapper->ttl = ttl;
 
     m_store[key] = value_wrapper;
 }
@@ -200,13 +217,40 @@ std::string LambdaSnail::server::set_handler<TDatabase>::execute(std::vector<res
     if (args.size() == 3)
     {
         auto const key = std::string(args[1].materialize(resp::BulkString{}));
-        //auto value = std::string(args[2].value);
         auto value = args[2].value;
-
         m_database.set_value(key, value);
+        return "+OK\r\n";
+    }
+
+    if (args.size() == 5)
+    {
+        auto const key = std::string(args[1].materialize(resp::BulkString{}));
+        auto value = args[2].value;
+        auto option = args[3].value; // Assume EX or PX for now
+
+        // Redis CLI sends a bulk string - need to refactor parsing part to handle various cases
+        auto ttl_str = args[4].materialize(resp::BulkString{});
+
+        //auto conversion = std::to_integer(ttl_str);
+        int64_t ttl{};
+        std::from_chars(ttl_str.data(), ttl_str.data() + ttl_str.length(), ttl);
+        if (ttl == 0) [[unlikely]]
+        {
+            return "-Invalid option to SET command, EX and PX require a non-negative integer\r\n";
+        }
+
+        if (option == "PX")
+        {
+            m_database.set_value(key, value, std::chrono::system_clock::now() + std::chrono::seconds(ttl));
+        }
+        else
+        {
+            m_database.set_value(key, value, std::chrono::system_clock::now() + std::chrono::milliseconds(ttl));
+        }
 
         return "+OK\r\n";
     }
+
 
     return "-Unable to SET\r\n";
 }
