@@ -19,20 +19,22 @@ import resp;
 
 namespace LambdaSnail::server
 {
-    export struct value_info
+    export struct entry_info
     {
-        uint32_t version{};
+        typedef uint32_t version_t;
+
+        version_t version{};
         std::string data;
-        std::chrono::time_point<std::chrono::system_clock> timeout{};
+        std::chrono::time_point<std::chrono::system_clock> ttl{};
 
         [[nodiscard]] bool has_timeout() const
         {
-            return timeout == std::chrono::time_point<std::chrono::system_clock>::min();
+            return ttl == std::chrono::time_point<std::chrono::system_clock>::min();
         }
     };
 
     //using store_t = std::unordered_map<std::string, std::shared_ptr<struct value_info>>; // TODO: Should be string!!! ?
-    using store_t = tbb::concurrent_unordered_map<std::string, std::shared_ptr<value_info>>;
+    using store_t = tbb::concurrent_unordered_map<std::string, std::shared_ptr<entry_info>>;
 
     struct ICommandHandler
     {
@@ -78,7 +80,7 @@ namespace LambdaSnail::server
         explicit database(memory::buffer_allocator<char>& string_allocator) : m_string_allocator(string_allocator) { }
         [[nodiscard]] std::string process_command(resp::data_view message);
 
-        [[nodiscard]] std::shared_ptr<value_info> get_value(std::string const& key) const;
+        [[nodiscard]] std::shared_ptr<entry_info> get_value(std::string const& key) const;
 
         void set_value(std::string const& key, std::string_view value);
 
@@ -132,7 +134,7 @@ std::string LambdaSnail::server::database::process_command(resp::data_view messa
     return { "-Unable to find command\r\n" };
 }
 
-std::shared_ptr<LambdaSnail::server::value_info> LambdaSnail::server::database::get_value(std::string const &key) const
+std::shared_ptr<LambdaSnail::server::entry_info> LambdaSnail::server::database::get_value(std::string const &key) const
 {
     auto lock = std::shared_lock{ m_mutex };
 
@@ -145,7 +147,7 @@ void LambdaSnail::server::database::set_value(std::string const &key, std::strin
     auto lock = std::shared_lock{ m_mutex };
 
     auto const it = m_store.find(key);
-    std::shared_ptr<value_info> const value_wrapper = (it == m_store.end()) ? std::make_shared<value_info>() : it->second;
+    std::shared_ptr<entry_info> const value_wrapper = (it == m_store.end()) ? std::make_shared<entry_info>() : it->second;
 
     value_wrapper->data = std::string(value);
     ++value_wrapper->version = 99; // TODO: Assign random value?
