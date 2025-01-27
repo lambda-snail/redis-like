@@ -76,9 +76,11 @@ namespace LambdaSnail::server
         };
 
         /**
-         * Keys with expiry are stored here as well. The actual expiry information
+         * Instead of deleting key/values from the database, key/values to be deleted are added
+         * to this list and cleaned up from a background thread. This avoids the need for synchronizing
+         * updates in two concurrent data structures during regular operations (GET, SET).
+         * TODO: Use queue instead?
          */
-        //tbb::concurrent_unordered_map<std::string, bool> m_ttl_keys;
         tbb::concurrent_unordered_map<std::string, expiry_info> m_delete_keys;
 
         // TODO: May need different structure for this when we can support multiple databases

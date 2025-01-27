@@ -160,6 +160,7 @@ void LambdaSnail::server::database::set_value(std::string const& key, std::strin
 
 void LambdaSnail::server::database::test_keys(time_point_t now, size_t max_num_tests)
 {
+    // For simplicity, we lock the entire database while performing maintenance
     auto lock = std::unique_lock{ m_mutex };
 
     // First check if we have deleted any keys or expired hem passively
@@ -171,9 +172,10 @@ void LambdaSnail::server::database::test_keys(time_point_t now, size_t max_num_t
             continue;
         }
 
-        // Even if the version differs, the entry may have expired,so we check for that
-        // case as well
         auto const entry = entry_it->second;
+
+        // Even if the version differs, the entry may have expired, so we check for that
+        // case as well, even if the delete reason is not due to an expired key
         if (entry->version != expiry.version and not entry->has_expired(now))
         {
             continue;
