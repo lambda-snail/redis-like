@@ -2,113 +2,20 @@ module;
 
 #include <atomic>
 #include <cassert>
+#include <charconv>
 #include <functional>
 #include <future>
+#include <iomanip>
+#include <random>
+#include <semaphore>
 #include <shared_mutex>
 #include <string>
-#include <charconv>
-#include <iomanip>
 
-//#include "oneapi/tbb/concurrent_set.h"
 #include "oneapi/tbb/concurrent_unordered_map.h"
 
 #include <tracy/Tracy.hpp>
 
 module server;
-
-import memory;
-import resp;
-
-// namespace LambdaSnail::server
-// {
-//     export struct entry_info
-//     {
-//         typedef uint32_t version_t;
-//
-//         version_t version{};
-//         std::string data;
-//         std::chrono::time_point<std::chrono::system_clock> ttl{};
-//
-//         [[nodiscard]] bool has_timeout() const
-//         {
-//             return ttl != std::chrono::time_point<std::chrono::system_clock>::min();
-//         }
-//     };
-//
-//     //using store_t = std::unordered_map<std::string, std::shared_ptr<struct value_info>>; // TODO: Should be string!!! ?
-//     using store_t = tbb::concurrent_unordered_map<std::string, std::shared_ptr<entry_info>>;
-//
-//     struct ICommandHandler
-//     {
-//         [[nodiscard]] virtual std::string execute(std::vector<resp::data_view> const& args) noexcept = 0;
-//         virtual ~ICommandHandler() = default;
-//     };
-//
-//     struct ping_handler final : public ICommandHandler
-//     {
-//         [[nodiscard]] std::string execute(std::vector<resp::data_view> const& args) noexcept override;
-//         ~ping_handler() override = default;
-//     };
-//
-//     struct echo_handler final : public ICommandHandler
-//     {
-//         [[nodiscard]] std::string execute(std::vector<resp::data_view> const& args) noexcept override;
-//         ~echo_handler() override = default;
-//     };
-//
-//     template<typename TDatabase>
-//     struct get_handler final : public ICommandHandler
-//     {
-//         explicit get_handler(TDatabase& database) : m_database(database) {}
-//         [[nodiscard]] std::string execute(std::vector<resp::data_view> const& args) noexcept override;
-//         ~get_handler() override = default;
-//     private:
-//         TDatabase& m_database;
-//     };
-//
-//     template<typename TDatabase>
-//     struct set_handler final : public ICommandHandler
-//     {
-//         explicit set_handler(TDatabase& database) : m_database(database) {}
-//         [[nodiscard]] std::string execute(std::vector<resp::data_view> const& args) noexcept override;
-//         ~set_handler() override = default;
-//     private:
-//         TDatabase& m_database;
-//     };
-//
-//     export class database
-//     {
-//     public:
-//         explicit database(memory::buffer_allocator<char>& string_allocator) : m_string_allocator(string_allocator) { }
-//         [[nodiscard]] std::string process_command(resp::data_view message);
-//
-//         [[nodiscard]] std::shared_ptr<entry_info> get_value(std::string const& key);
-//
-//         void set_value(std::string const& key, std::string_view value, std::chrono::time_point<std::chrono::system_clock> ttl = {});
-//
-//     private:
-//         memory::buffer_allocator<char>& m_string_allocator;
-//
-//         store_t m_store{1000};
-//
-//         // TODO: May need different structure for this when we can support multiple databases
-//         tbb::concurrent_unordered_map<std::string_view, ICommandHandler* const> m_command_map
-//         {
-//             std::pair("PING", new ping_handler),
-//             std::pair("ECHO", new echo_handler),
-//             std::pair("GET", new get_handler<database>{ *this }),
-//             std::pair("SET", new set_handler<database>{ *this }),
-//         };
-//
-//         /**
-//          * The key-value store is a concurrent queue, so is "safe" to access from multiple threads,
-//          * but we may periodically wish to perform maintenance work on the database, such as expire
-//          * key etc. In those cases the shared mutex allows us to lock the entire map for a short
-//          * duration.
-//          */
-//         mutable std::shared_mutex m_mutex{};
-//     };
-// }
 
 namespace LambdaSnail::server
 {
@@ -159,6 +66,11 @@ namespace LambdaSnail::server
     bool entry_info::has_ttl() const
     {
         return ttl != std::chrono::time_point<std::chrono::system_clock>::min();
+    }
+
+    bool entry_info::has_expired(time_point_t now) const
+    {
+        return ttl <= now;
     }
 
     database::database(memory::buffer_allocator<char> &string_allocator) : m_string_allocator(string_allocator)
@@ -212,12 +124,15 @@ std::shared_ptr<LambdaSnail::server::entry_info> LambdaSnail::server::database::
 
     if (it->second->has_ttl())
     {
-        std::chrono::time_point<std::chrono::system_clock> now = std::chrono::system_clock::now();
+        std::chrono::time_point<std::chrono::system_clock> const now = std::chrono::system_clock::now();
         if (it->second->ttl < now)
         {
-            m_store.unsafe_erase(it);
-            auto num_erased = m_ttl_keys.unsafe_erase(key);
-            assert(num_erased);
+            // Will be cleaned up in the background
+            m_delete_keys.insert[key] = expiry_info
+            {
+                .version = it->second->version,
+                .delete_reason = delete_reason::ttl_expiry
+            };
 
             return nullptr;
         }
@@ -236,25 +151,65 @@ void LambdaSnail::server::database::set_value(std::string const& key, std::strin
                                                           ? std::make_shared<entry_info>()
                                                           : it->second;
 
-    bool const had_ttl = value_wrapper->has_ttl();
-
     value_wrapper->data = std::string(value);
     ++value_wrapper->version;
     value_wrapper->ttl = ttl;
 
-    // If we don't have ttl before or after, or if we have ttl both
-    // before and after insert, there is no need to query the ttl keys again
-    if (had_ttl and not value_wrapper->has_ttl())
+    m_store[key] = value_wrapper;
+}
+
+void LambdaSnail::server::database::test_keys(time_point_t now, size_t max_num_tests)
+{
+    auto lock = std::unique_lock{ m_mutex };
+
+    // First check if we have deleted any keys or expired hem passively
+    for (auto& [key, expiry] : m_delete_keys)
     {
-        auto num_erased = m_ttl_keys.unsafe_erase(key);
-        assert(num_erased);
-    }
-    else if (not had_ttl and value_wrapper->has_ttl())
-    {
-        m_ttl_keys[key] = true;
+        auto entry_it = m_store.find(key);
+        if (entry_it == m_store.end()) [[unlikely]]
+        {
+            continue;
+        }
+
+        // Even if the version differs, the entry may have expired,so we check for that
+        // case as well
+        auto const entry = entry_it->second;
+        if (entry->version != expiry.version and not entry->has_expired(now))
+        {
+            continue;
+        }
+
+        // The key could have been deleted multiple times for various reasons and from multiple
+        // threads, so we need to check that it actually exists one more time
+        auto const value_it = m_store.find(key);
+        if (value_it != m_store.end())
+        {
+            m_store.unsafe_erase(key);
+        }
     }
 
-    m_store[key] = value_wrapper;
+    m_delete_keys.clear();
+
+    // Now we test a few keys at random to see if they are expired
+    std::mt19937_64 random_engine(now);
+
+    auto store_it = m_store.begin();
+    size_t current_index = 0;
+    for (size_t i = 0; i < max_num_tests; ++i)
+    {
+        auto const incr = random_engine();
+        std::ranges::advance(store_it, static_cast<std::iter_difference_t<store_t::iterator>>(incr));
+        if (store_it == m_store.end())
+        {
+            continue;
+        }
+
+        auto const value = store_it->second;
+        if (value->has_expired(now))
+        {
+            store_it = m_store.unsafe_erase(store_it);
+        }
+    }
 }
 
 std::string LambdaSnail::server::ping_handler::execute(std::vector<resp::data_view> const &args) noexcept
@@ -318,8 +273,7 @@ std::string LambdaSnail::server::set_handler<TDatabase>::execute(std::vector<res
         //auto conversion = std::to_integer(ttl_str);
         int64_t ttl{};
         std::from_chars(ttl_str.data(), ttl_str.data() + ttl_str.length(), ttl);
-        if (ttl == 0)
-        [[unlikely]]
+        if (ttl == 0) [[unlikely]]
         {
             return "-Invalid option to SET command, EX and PX require a non-negative integer\r\n";
         }

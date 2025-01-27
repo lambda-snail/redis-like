@@ -7,4 +7,4 @@ target_sources(logging
 )
 
 add_library(LambdaSnail::logging ALIAS logging)
-target_link_libraries(logging PRIVATE spdlog::spdlog)
+target_link_libraries(logging PUBLIC spdlog::spdlog)
