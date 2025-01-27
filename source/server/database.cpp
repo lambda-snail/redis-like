@@ -9,7 +9,7 @@ module;
 #include <charconv>
 #include <iomanip>
 
-#include "oneapi/tbb/concurrent_set.h"
+//#include "oneapi/tbb/concurrent_set.h"
 #include "oneapi/tbb/concurrent_unordered_map.h"
 
 #include <tracy/Tracy.hpp>
@@ -217,10 +217,7 @@ std::shared_ptr<LambdaSnail::server::entry_info> LambdaSnail::server::database::
         {
             m_store.unsafe_erase(it);
             auto num_erased = m_ttl_keys.unsafe_erase(key);
-            if (num_erased == 0)
-            {
-                // TODO: Error handling
-            }
+            assert(num_erased);
 
             return nullptr;
         }
@@ -254,7 +251,7 @@ void LambdaSnail::server::database::set_value(std::string const& key, std::strin
     }
     else if (not had_ttl and value_wrapper->has_ttl())
     {
-        m_ttl_keys.insert(key);
+        m_ttl_keys[key] = true;
     }
 
     m_store[key] = value_wrapper;
@@ -313,7 +310,7 @@ std::string LambdaSnail::server::set_handler<TDatabase>::execute(std::vector<res
     {
         auto const key = std::string(args[1].materialize(resp::BulkString{}));
         auto value = args[2].value;
-        auto option = args[3].value; // Assume EX or PX for now
+        auto option = args[3].materialize(resp::BulkString{}); // Assume EX or PX for now, also assume bulk string (can this be a simple string?)
 
         // Redis CLI sends a bulk string - need to refactor parsing part to handle various cases
         auto ttl_str = args[4].materialize(resp::BulkString{});
@@ -327,7 +324,7 @@ std::string LambdaSnail::server::set_handler<TDatabase>::execute(std::vector<res
             return "-Invalid option to SET command, EX and PX require a non-negative integer\r\n";
         }
 
-        if (option == "PX")
+        if (option == "EX")
         {
             m_database.set_value(key, value, std::chrono::system_clock::now() + std::chrono::seconds(ttl));
         } else

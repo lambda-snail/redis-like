@@ -7,7 +7,7 @@ module;
 #include <string>
 
 #include "oneapi/tbb/concurrent_unordered_map.h"
-#include "oneapi/tbb/concurrent_set.h"
+//#include "oneapi/tbb/concurrent_set.h"
 
 export module server;
 
@@ -16,16 +16,17 @@ import resp;
 
 namespace LambdaSnail::server
 {
+    using time_point_t = std::chrono::time_point<std::chrono::system_clock>;
+
     struct entry_info
     {
         typedef uint32_t version_t;
         std::string data;
         version_t version{};
-        std::chrono::time_point<std::chrono::system_clock> ttl{};
+        time_point_t ttl{ time_point_t::min() };
         [[nodiscard]] bool has_ttl() const;
     };
 
-    //using store_t = std::unordered_map<std::string, std::shared_ptr<struct value_info>>; // TODO: Should be string!!! ?
     using store_t = tbb::concurrent_unordered_map<std::string, std::shared_ptr<entry_info>>;
 
     export struct ICommandHandler
@@ -53,7 +54,7 @@ namespace LambdaSnail::server
         /**
          * Keys with expiry are stored here as well. The actual expiry information
          */
-        tbb::concurrent_set<std::string> m_ttl_keys;
+        tbb::concurrent_unordered_map<std::string, bool> m_ttl_keys;
 
         // TODO: May need different structure for this when we can support multiple databases
         tbb::concurrent_unordered_map<std::string_view, ICommandHandler* const> m_command_map;
