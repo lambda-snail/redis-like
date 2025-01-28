@@ -38,9 +38,13 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" OR "${CMAKE_CXX_COMPILER_ID}" ST
     endif()
 endif()
 
+target_include_directories(redis-like PUBLIC ${tclap_SOURCE_DIR}/include)
+
 target_link_libraries(redis-like
         PRIVATE
         asio
+        #CLI11::CLI11
+        cli11
 
         LambdaSnail::resp
         LambdaSnail::networking

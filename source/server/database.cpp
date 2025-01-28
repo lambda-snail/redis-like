@@ -2,85 +2,98 @@ module;
 
 #include <atomic>
 #include <cassert>
+#include <charconv>
 #include <functional>
 #include <future>
+#include <iomanip>
+#include <random>
 #include <shared_mutex>
 #include <string>
-#include <unordered_map>
 
 #include "oneapi/tbb/concurrent_unordered_map.h"
 
 #include <tracy/Tracy.hpp>
 
-export module server: resp.commands; // Move to resp module?
-
-import memory;
-import resp;
+module server;
 
 namespace LambdaSnail::server
 {
-    //using store_t = std::unordered_map<std::string, std::string>; // TODO: Should be string!!! ?
-    using store_t = tbb::concurrent_unordered_map<std::string, std::string>;
-
-    struct ICommandHandler
-    {
-        [[nodiscard]] virtual std::string execute(std::vector<resp::data_view> const& args) noexcept = 0;
-        virtual ~ICommandHandler() = default;
-    };
-
     struct ping_handler final : public ICommandHandler
     {
-        [[nodiscard]] std::string execute(std::vector<resp::data_view> const& args) noexcept override;
+        [[nodiscard]] std::string execute(std::vector<resp::data_view> const &args) noexcept override;
+
         ~ping_handler() override = default;
     };
 
     struct echo_handler final : public ICommandHandler
     {
-        [[nodiscard]] std::string execute(std::vector<resp::data_view> const& args) noexcept override;
+        [[nodiscard]] std::string execute(std::vector<resp::data_view> const &args) noexcept override;
+
         ~echo_handler() override = default;
     };
 
+    template<typename TDatabase>
     struct get_handler final : public ICommandHandler
     {
-        explicit get_handler(store_t& store) : m_store(store) {}
-        [[nodiscard]] std::string execute(std::vector<resp::data_view> const& args) noexcept override;
+        explicit get_handler(TDatabase &database) : m_database(database)
+        {
+        }
+
+        [[nodiscard]] std::string execute(std::vector<resp::data_view> const &args) noexcept override;
+
         ~get_handler() override = default;
+
     private:
-        store_t& m_store;
+        TDatabase &m_database;
     };
 
+    template<typename TDatabase>
     struct set_handler final : public ICommandHandler
     {
-        explicit set_handler(store_t& store) : m_store(store) {}
-        [[nodiscard]] std::string execute(std::vector<resp::data_view> const& args) noexcept override;
+        explicit set_handler(TDatabase &database) : m_database(database)
+        {
+        }
+
+        [[nodiscard]] std::string execute(std::vector<resp::data_view> const &args) noexcept override;
+
         ~set_handler() override = default;
+
     private:
-        store_t& m_store;
+        TDatabase &m_database;
     };
 
-    export class database
+    bool entry_info::has_ttl() const
     {
-    public:
-        explicit database(memory::buffer_allocator<char>& string_allocator) : m_string_allocator(string_allocator) { }
-        [[nodiscard]] std::string process_command(resp::data_view message);
+        return ttl != std::chrono::time_point<std::chrono::system_clock>::min();
+    }
 
-    private:
-        memory::buffer_allocator<char>& m_string_allocator;
+    bool entry_info::has_expired(time_point_t now) const
+    {
+        return ttl <= now;
+    }
 
-        store_t m_store{1000};
+    bool entry_info::is_deleted() const
+    {
+        return flags & static_cast<flags_t>(entry_flags::deleted);
+    }
 
-        // TODO: May need different structure for this when we can support multiple databases
-        tbb::concurrent_unordered_map<std::string_view, ICommandHandler* const> m_command_map
+    void entry_info::set_deleted()
+    {
+        flags |= static_cast<flags_t>(entry_flags::deleted);
+    }
+
+    database::database(memory::buffer_allocator<char> &string_allocator) : m_string_allocator(string_allocator)
+    {
+        m_command_map = std::unordered_map<std::string_view, ICommandHandler* const>
         {
             std::pair("PING", new ping_handler),
             std::pair("ECHO", new echo_handler),
-            std::pair("GET", new get_handler{ m_store }),
-            std::pair("SET", new set_handler{ m_store }),
+            std::pair("GET", new get_handler<database>{ *this }),
+            std::pair("SET", new set_handler<database>{ *this }),
         };
-
-        std::shared_mutex m_mutex{};
-    };
+    }
 }
+
 
 std::string LambdaSnail::server::database::process_command(resp::data_view message)
 {
@@ -90,14 +103,14 @@ std::string LambdaSnail::server::database::process_command(resp::data_view messa
 
     if (request.size() == 0 or request[0].type != LambdaSnail::resp::data_type::BulkString)
     {
-        return { "-Unable to parse request\r\n" };
+        return {"-Unable to parse request\r\n"};
     }
 
     auto const _1 = request[0].materialize(resp::BulkString{});
     auto const cmd_it = m_command_map.find(_1);
     if (cmd_it != m_command_map.end())
     {
-        auto* const command = cmd_it->second;
+        auto *const command = cmd_it->second;
         if (command)
         {
             std::string s = command->execute(request);
@@ -105,10 +118,121 @@ std::string LambdaSnail::server::database::process_command(resp::data_view messa
         }
     }
 
-    return { "-Unable to find command\r\n" };
+    return {"-Unable to find command\r\n"};
 }
 
-std::string LambdaSnail::server::ping_handler::execute(std::vector<resp::data_view> const& args) noexcept
+std::shared_ptr<LambdaSnail::server::entry_info> LambdaSnail::server::database::get_value(std::string const& key)
+{
+    auto lock = std::shared_lock{ m_mutex };
+
+    auto const it = m_store.find(key);
+    if (it == m_store.end() or it->second->is_deleted())
+    {
+        return nullptr;
+    }
+
+    if (it->second->has_ttl())
+    {
+        std::chrono::time_point<std::chrono::system_clock> const now = std::chrono::system_clock::now();
+        if (it->second->ttl < now)
+        {
+            // Will be cleaned up in the background by the maintenance thread
+            m_delete_keys[key] = expiry_info
+            {
+                .version = it->second->version,
+                .delete_reason = delete_reason::ttl_expiry
+            };
+
+            return nullptr;
+        }
+    }
+
+    return it->second;
+}
+
+void LambdaSnail::server::database::set_value(std::string const& key, std::string_view value,
+                                              std::chrono::time_point<std::chrono::system_clock> ttl)
+{
+    auto lock = std::shared_lock{m_mutex};
+
+    auto const it = m_store.find(key);
+    std::shared_ptr<entry_info> const value_wrapper = (it == m_store.end())
+                                                          ? std::make_shared<entry_info>()
+                                                          : it->second;
+
+    value_wrapper->data = std::string(value);
+    value_wrapper->ttl = ttl;
+    value_wrapper->flags = {};
+
+    // Incrementing the version allows us to ignore the queue of entries to
+    // be deleted, as the maintenance thread will see that the version is different
+    // and abort the delete (unless exactly 2^32 sets are called before the next cleanup ...)
+    ++value_wrapper->version;
+
+    m_store[key] = value_wrapper;
+}
+
+void LambdaSnail::server::database::handle_deletes(time_point_t now, size_t max_num_tests)
+{
+    // For simplicity, we lock the entire database while performing maintenance
+    auto lock = std::unique_lock{ m_mutex };
+
+    // First check if we have deleted any keys or expired hem passively
+    for (auto& [key, expiry] : m_delete_keys)
+    {
+        auto entry_it = m_store.find(key);
+        if (entry_it == m_store.end()) [[unlikely]]
+        {
+            continue;
+        }
+
+        // Even if the version differs, the entry may have expired, so we check for that
+        // case as well, even if the delete reason is not due to an expired key.
+        // As an extra check we also abort the operation if the delete flag is not set.
+        if ((entry_it->second->version != expiry.version
+            or not entry_it->second->has_expired(now))
+            or not entry_it->second->is_deleted())
+        {
+            continue;
+        }
+
+        // If we get here, we are confident the key can be deleted
+        //m_store.unsafe_erase(entry_it);
+        m_store.erase(entry_it);
+    }
+
+    m_delete_keys.clear();
+
+    // A rare edge case perhaps, but no need to create random
+    // generator if this holds true
+    if (m_store.empty())
+    {
+        return;
+    }
+
+    // Now we test a few keys at random to see if they are expired
+    std::mt19937_64 random_engine( now.time_since_epoch().count() );
+    std::uniform_int_distribution<size_t> distribution(0, m_store.size());
+
+    for (size_t i = 0; i < max_num_tests; ++i)
+    {
+        auto store_it = m_store.begin();
+        auto const incr = distribution(random_engine); //random_engine();
+        std::advance(store_it, static_cast<std::iter_difference_t<store_t::iterator>>(incr));
+
+        if (store_it == m_store.end())
+        {
+            break;
+        }
+
+        if (store_it->second->has_ttl() and store_it->second->has_expired(now))
+        {
+            m_store.erase(store_it);
+        }
+    }
+}
+
+std::string LambdaSnail::server::ping_handler::execute(std::vector<resp::data_view> const &args) noexcept
 {
     ZoneScoped;
 
@@ -116,7 +240,7 @@ std::string LambdaSnail::server::ping_handler::execute(std::vector<resp::data_vi
     return "+PONG\r\n";
 }
 
-std::string LambdaSnail::server::echo_handler::execute(std::vector<resp::data_view> const& args) noexcept
+std::string LambdaSnail::server::echo_handler::execute(std::vector<resp::data_view> const &args) noexcept
 {
     ZoneScoped;
 
@@ -125,7 +249,8 @@ std::string LambdaSnail::server::echo_handler::execute(std::vector<resp::data_vi
     return "$" + std::to_string(str.size()) + "\r\n" + std::string(str.data(), str.size()) + "\r\n";
 }
 
-std::string LambdaSnail::server::get_handler::execute(std::vector<resp::data_view> const& args) noexcept
+template<typename TDatabase>
+std::string LambdaSnail::server::get_handler<TDatabase>::execute(std::vector<resp::data_view> const &args) noexcept
 {
     ZoneScoped;
 
@@ -133,30 +258,57 @@ std::string LambdaSnail::server::get_handler::execute(std::vector<resp::data_vie
     {
         auto const key = std::string(args[1].materialize(resp::BulkString{}));
 
-        auto const it = m_store.find(key);
-        if (it != m_store.end())
+        auto value = m_database.get_value(std::move(key));
+        if (value)
         {
-            return it->second + "\r\n";
+            return value->data + "\r\n";
         }
     }
 
     return "_\r\n";
 }
 
-std::string LambdaSnail::server::set_handler::execute(std::vector<resp::data_view> const &args) noexcept
+template<typename TDatabase>
+std::string LambdaSnail::server::set_handler<TDatabase>::execute(std::vector<resp::data_view> const &args) noexcept
 {
     ZoneScoped;
 
     if (args.size() == 3)
     {
         auto const key = std::string(args[1].materialize(resp::BulkString{}));
-        auto const value = std::string(args[2].value);
+        auto value = args[2].value;
+        m_database.set_value(key, value);
+        return "+OK\r\n";
+    }
 
-        m_store[key] = value;
+    if (args.size() == 5)
+    {
+        auto const key = std::string(args[1].materialize(resp::BulkString{}));
+        auto value = args[2].value;
+        auto option = args[3].materialize(resp::BulkString{}); // Assume EX or PX for now, also assume bulk string (can this be a simple string?)
+
+        // Redis CLI sends a bulk string - need to refactor parsing part to handle various cases
+        auto ttl_str = args[4].materialize(resp::BulkString{});
+
+        //auto conversion = std::to_integer(ttl_str);
+        int64_t ttl{};
+        std::from_chars(ttl_str.data(), ttl_str.data() + ttl_str.length(), ttl);
+        if (ttl == 0) [[unlikely]]
+        {
+            return "-Invalid option to SET command, EX and PX require a non-negative integer\r\n";
+        }
+
+        if (option == "EX")
+        {
+            m_database.set_value(key, value, std::chrono::system_clock::now() + std::chrono::seconds(ttl));
+        } else
+        {
+            m_database.set_value(key, value, std::chrono::system_clock::now() + std::chrono::milliseconds(ttl));
+        }
 
         return "+OK\r\n";
     }
 
+
     return "-Unable to SET\r\n";
 }
-

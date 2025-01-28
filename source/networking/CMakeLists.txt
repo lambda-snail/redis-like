@@ -41,7 +41,7 @@ target_sources(networking
 
 add_library(LambdaSnail::networking ALIAS networking)
 
-target_link_libraries(networking PRIVATE LambdaSnail::logging LambdaSnail::memory LambdaSnail::resp LambdaSnail::server spdlog)
+target_link_libraries(networking PRIVATE LambdaSnail::logging LambdaSnail::memory LambdaSnail::resp LambdaSnail::server)
 
 target_link_libraries(networking PUBLIC TracyClient)
 target_include_directories(networking PUBLIC ${Tracy_SOURCE_DIR}/public)

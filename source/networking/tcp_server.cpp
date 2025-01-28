@@ -7,6 +7,7 @@ module;
 #include <asio/deferred.hpp>
 #include <asio/detached.hpp>
 #include <asio/ip/tcp.hpp>
+#include <asio/placeholders.hpp>
 #include <asio/signal_set.hpp>
 #include <asio/write.hpp>
 #include <cstdio>
@@ -24,13 +25,22 @@ import memory;
 import server;
 import resp;
 
+namespace LambdaSnail::networking
+{
+    export struct server_options
+    {
+        uint16_t port{ 6379 };
+        uint32_t cleanup_interval_seconds{ 10 };
+    };
+}
+
 using default_token_t = asio::deferred_t;
 using tcp_acceptor_t = default_token_t::as_default_on_t<asio::ip::tcp::acceptor>;
 using tcp_socket_t = default_token_t::as_default_on_t<asio::ip::tcp::socket>;
 
 asio::awaitable<void> connection(
     tcp_socket_t socket,
-    LambdaSnail::server::database& dispatch,
+    std::shared_ptr<LambdaSnail::server::database> database,
     LambdaSnail::memory::buffer_pool& buffer_pool,
     std::shared_ptr<LambdaSnail::logging::logger> logger)
 {
@@ -65,7 +75,7 @@ asio::awaitable<void> connection(
             }
 
             LambdaSnail::resp::data_view resp_data(std::string_view(buffer_info.buffer, n));
-            std::string response = dispatch.process_command(resp_data);
+            std::string response = database->process_command(resp_data);
 
             auto [ec_w, n_written] = co_await async_write(socket, asio::buffer(response, response.size()), asio::as_tuple(asio::use_awaitable));
             if (ec) [[unlikely]]
@@ -84,7 +94,7 @@ asio::awaitable<void> connection(
 
 asio::awaitable<void> listener(
     uint16_t port,
-    LambdaSnail::server::database& dispatch,
+    std::shared_ptr<LambdaSnail::server::database> database,
     LambdaSnail::memory::buffer_pool& buffer_pool,
     std::shared_ptr<LambdaSnail::logging::logger> logger)
 {
@@ -92,31 +102,42 @@ asio::awaitable<void> listener(
     tcp_acceptor_t acceptor(executor, {asio::ip::tcp::v4(), port});
 
 #ifndef _WIN32
-    acceptor.set_option(asio::ip::tcp::acceptor::reuse_address(true));
-    typedef asio::detail::socket_option::boolean<SOL_SOCKET, SO_REUSEPORT> reuse_port;
-    acceptor.set_option(reuse_port(true));
+    // acceptor.set_option(asio::ip::tcp::acceptor::reuse_address(true));
+    // typedef asio::detail::socket_option::boolean<SOL_SOCKET, SO_REUSEPORT> reuse_port;
+    // acceptor.set_option(reuse_port(true));
 #endif
-
-    // int one = 1;
-    // auto result = setsockopt(acceptor.native_handle(), SOL_SOCKET /*SOL_SOCKET*/, SO_REUSEADDR | SO_REUSEPORT, &one, sizeof(one));
-    // auto error = strerror(errno); //errno;
 
     while (true)
     {
-        asio::ip::tcp::socket socket = co_await acceptor.async_accept();
-        co_spawn(executor, connection(std::move(socket), dispatch, buffer_pool, logger), asio::detached);
+        auto [ec, socket] = co_await acceptor.async_accept(asio::as_tuple(asio::use_awaitable));
+        if (ec)
+        {
+            logger->get_network_logger()->error("Error listening for connections: {}", ec.message());
+            break;
+        }
+
+        co_spawn(executor, connection(std::move(socket), database, buffer_pool, logger), asio::detached);
     }
 }
 
-// TODO: Move this out from here
-export class runner
+export class tcp_server
 {
 public:
-    runner(std::shared_ptr<LambdaSnail::logging::logger> logger) : m_logger(logger)
+    tcp_server(
+        LambdaSnail::server::timeout_worker& maintenance_thread,
+        std::shared_ptr<LambdaSnail::logging::logger> logger,
+        std::unique_ptr<LambdaSnail::networking::server_options> options)
+    :
+        m_logger(logger),
+        m_server_options(std::move(options)),
+        m_maintenance_timer(m_context),
+        m_maintenance_thread(maintenance_thread)
     {
     }
 
-    void run(uint16_t port, LambdaSnail::server::database &dispatch, LambdaSnail::memory::buffer_pool &buffer_pool)
+    void run(
+        std::shared_ptr<LambdaSnail::server::database> database,
+        LambdaSnail::memory::buffer_pool &buffer_pool)
     {
         ZoneScoped;
 
@@ -139,12 +160,20 @@ public:
 #else
                     m_logger->get_system_logger()->info("The system received signal {}", signal);
 #endif
+                    m_maintenance_timer.cancel();
                     m_context.stop();
                 });
 
-            asio::co_spawn(m_context, listener(port, dispatch, buffer_pool, m_logger), asio::detached);
+            asio::co_spawn(m_context, listener(m_server_options->port, database, buffer_pool, m_logger), asio::detached);
+
+            m_logger->get_network_logger()->info("The maintenance thread will run every {} seconds", m_server_options->cleanup_interval_seconds);
+            m_maintenance_timer.expires_after(asio::chrono::seconds(m_server_options->cleanup_interval_seconds));
+            m_maintenance_timer.async_wait(std::bind(&tcp_server::maintenance_timer_handler, this, std::placeholders::_1, std::nullopt));
 
             m_context.run();
+
+            // Signal worker schedulers that no more scheduling should take place
+            m_should_shutdown = true;
 
             // If we are using an asio::thread_pool, we should join here to wait for
             // asio to be done (i.e., server shutdown)
@@ -155,19 +184,51 @@ public:
         }
     }
 
-    ~runner()
+    ~tcp_server()
     {
         m_logger->get_system_logger()->info("The server is shutting down");
     }
 
 private:
-    size_t m_thread_pool_size = 8;
-
-    // We can use a single threaded context or a thread pool
-    // TODO: Both of these need to be tested and evaluated. Perhaps the usage can
-    // be a configuration at start?
+    std::atomic<bool> m_should_shutdown{ false };
     asio::io_context m_context { 1 };
     //asio::thread_pool m_context { m_thread_pool_size };
 
     std::shared_ptr<LambdaSnail::logging::logger> m_logger;
+    std::unique_ptr<LambdaSnail::networking::server_options> m_server_options;
+
+    asio::steady_timer m_maintenance_timer;
+    LambdaSnail::server::timeout_worker& m_maintenance_thread;
+
+    static constexpr int64_t worker_threads_result_max_wait_time = 500;
+
+    void maintenance_timer_handler(
+        std::error_code const ec,
+        std::optional<std::shared_future<void>> const& async_operation = std::nullopt)
+    {
+        if (ec)
+        {
+            this->m_logger->get_network_logger()->error("Error encountered by maintenance timer: {}", ec.message());
+            return;
+        }
+
+        if (m_should_shutdown)
+        {
+            return;
+        }
+
+        auto const operation = async_operation
+            .or_else([this]
+            {
+                return std::optional{ m_maintenance_thread.do_work_async().share() };
+            })
+            .and_then([this](std::shared_future<void> const& future)
+            {
+                auto const status = future.wait_for(std::chrono::microseconds(worker_threads_result_max_wait_time));
+                return status == std::future_status::ready ? std::nullopt : std::optional{ future };
+            });
+
+        m_maintenance_timer.expires_after(asio::chrono::seconds(m_server_options->cleanup_interval_seconds));
+        m_maintenance_timer.async_wait(std::bind(&tcp_server::maintenance_timer_handler, this, std::placeholders::_1, operation));
+    }
 };
