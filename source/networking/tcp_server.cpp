@@ -25,6 +25,15 @@ import memory;
 import server;
 import resp;
 
+namespace LambdaSnail::networking
+{
+    export struct server_options
+    {
+        uint16_t port{ 6379 };
+        uint32_t cleanup_interval_seconds{ 300 };
+    };
+}
+
 using default_token_t = asio::deferred_t;
 using tcp_acceptor_t = default_token_t::as_default_on_t<asio::ip::tcp::acceptor>;
 using tcp_socket_t = default_token_t::as_default_on_t<asio::ip::tcp::socket>;
@@ -116,16 +125,17 @@ export class tcp_server
 public:
     tcp_server(
         LambdaSnail::server::timeout_worker& maintenance_thread,
-        std::shared_ptr<LambdaSnail::logging::logger> logger)
+        std::shared_ptr<LambdaSnail::logging::logger> logger,
+        std::unique_ptr<LambdaSnail::networking::server_options> options)
     :
         m_logger(logger),
+        m_server_options(std::move(options)),
         m_maintenance_timer(m_context),
         m_maintenance_thread(maintenance_thread)
     {
     }
 
     void run(
-        uint16_t port,
         std::shared_ptr<LambdaSnail::server::database> database,
         LambdaSnail::memory::buffer_pool &buffer_pool)
     {
@@ -154,9 +164,10 @@ public:
                     m_context.stop();
                 });
 
-            asio::co_spawn(m_context, listener(port, database, buffer_pool, m_logger), asio::detached);
+            asio::co_spawn(m_context, listener(m_server_options->port, database, buffer_pool, m_logger), asio::detached);
 
-            m_maintenance_timer.expires_after(asio::chrono::seconds(10));
+            m_logger->get_network_logger()->info("The maintenance thread will run every {} seconds", m_server_options->cleanup_interval_seconds);
+            m_maintenance_timer.expires_after(asio::chrono::seconds(m_server_options->cleanup_interval_seconds));
             m_maintenance_timer.async_wait(std::bind(&tcp_server::maintenance_timer_handler, this, std::placeholders::_1));
 
             m_context.run();
@@ -180,15 +191,17 @@ private:
     //asio::thread_pool m_context { m_thread_pool_size };
 
     std::shared_ptr<LambdaSnail::logging::logger> m_logger;
+    std::unique_ptr<LambdaSnail::networking::server_options> m_server_options;
 
     asio::steady_timer m_maintenance_timer;
     LambdaSnail::server::timeout_worker& m_maintenance_thread;
+
     void maintenance_timer_handler(std::error_code const ec)
     {
         if (not ec)
         {
             m_maintenance_thread.do_work();
-            m_maintenance_timer.expires_after(asio::chrono::seconds(10));
+            m_maintenance_timer.expires_after(asio::chrono::seconds(m_server_options->cleanup_interval_seconds));
             m_maintenance_timer.async_wait(std::bind(&tcp_server::maintenance_timer_handler, this, std::placeholders::_1));
         }
         else

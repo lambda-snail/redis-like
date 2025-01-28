@@ -14,16 +14,12 @@ import networking;
 import resp;
 import server;
 
-struct cmd_arguments
+std::unique_ptr<LambdaSnail::networking::server_options> add_arguments(CLI::App& app, int argc, char const** argv)
 {
-    uint16_t port{ 6379 };
-};
-
-std::unique_ptr<cmd_arguments> add_arguments(CLI::App& app, int argc, char const** argv)
-{
-    auto options = std::make_unique<cmd_arguments>();
+    auto options = std::make_unique<LambdaSnail::networking::server_options>();
 
     app.add_option<uint16_t>("-p,--port", options->port, "The port to listen at");
+    app.add_option<uint32_t>("--ci,--cleanup-interval", options->cleanup_interval_seconds, "The number of seconds between each check for deleted entries");
 
     return options;
 }
@@ -51,9 +47,9 @@ int main(int argc, char const** argv)
     LambdaSnail::server::timeout_worker maintenance_thread(logger);
     maintenance_thread.add_database(database);
 
-    tcp_server runner(maintenance_thread, logger);
+    tcp_server runner(maintenance_thread, logger, std::move(options));
     //runner.run(6379, dispatch, buffer_pool);
-    runner.run(options->port, database, buffer_pool);
+    runner.run(database, buffer_pool);
 
     return 0;
 }
