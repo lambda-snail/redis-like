@@ -1,11 +1,10 @@
 module;
 
 #include <chrono>
+#include <future>
 #include <stdexcept>
 
 module server;
-
-//import logging;
 
 namespace LambdaSnail::server
 {
@@ -17,7 +16,7 @@ namespace LambdaSnail::server
         }
     }
 
-    void timeout_worker::do_work()
+    void timeout_worker::do_work() const
     {
         m_logger->get_system_logger()->info("Database maintenance thread started");
 
@@ -29,14 +28,14 @@ namespace LambdaSnail::server
         }
     }
 
+    std::future<void> timeout_worker::do_work_async() const
+    {
+        return std::async(std::launch::async, [&](){ do_work(); });
+    }
+
     // TODO: Remove function and fetch list of dbs in do_work
     void timeout_worker::add_database(std::shared_ptr<database> database)
     {
         m_database = std::move(database);
-    }
-
-    timeout_worker::~timeout_worker()
-    {
-        m_worker_thread.join();
     }
 }

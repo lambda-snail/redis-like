@@ -30,7 +30,7 @@ namespace LambdaSnail::networking
     export struct server_options
     {
         uint16_t port{ 6379 };
-        uint32_t cleanup_interval_seconds{ 300 };
+        uint32_t cleanup_interval_seconds{ 10 };
     };
 }
 
@@ -168,9 +168,12 @@ public:
 
             m_logger->get_network_logger()->info("The maintenance thread will run every {} seconds", m_server_options->cleanup_interval_seconds);
             m_maintenance_timer.expires_after(asio::chrono::seconds(m_server_options->cleanup_interval_seconds));
-            m_maintenance_timer.async_wait(std::bind(&tcp_server::maintenance_timer_handler, this, std::placeholders::_1));
+            m_maintenance_timer.async_wait(std::bind(&tcp_server::maintenance_timer_handler, this, std::placeholders::_1, std::nullopt));
 
             m_context.run();
+
+            // Signal worker schedulers that no more scheduling should take place
+            m_should_shutdown = true;
 
             // If we are using an asio::thread_pool, we should join here to wait for
             // asio to be done (i.e., server shutdown)
@@ -187,6 +190,7 @@ public:
     }
 
 private:
+    std::atomic<bool> m_should_shutdown{ false };
     asio::io_context m_context { 1 };
     //asio::thread_pool m_context { m_thread_pool_size };
 
@@ -196,17 +200,35 @@ private:
     asio::steady_timer m_maintenance_timer;
     LambdaSnail::server::timeout_worker& m_maintenance_thread;
 
-    void maintenance_timer_handler(std::error_code const ec)
+    static constexpr int64_t worker_threads_result_max_wait_time = 500;
+
+    void maintenance_timer_handler(
+        std::error_code const ec,
+        std::optional<std::shared_future<void>> const& async_operation = std::nullopt)
     {
-        if (not ec)
-        {
-            m_maintenance_thread.do_work();
-            m_maintenance_timer.expires_after(asio::chrono::seconds(m_server_options->cleanup_interval_seconds));
-            m_maintenance_timer.async_wait(std::bind(&tcp_server::maintenance_timer_handler, this, std::placeholders::_1));
-        }
-        else
+        if (ec)
         {
             this->m_logger->get_network_logger()->error("Error encountered by maintenance timer: {}", ec.message());
+            return;
         }
+
+        if (m_should_shutdown)
+        {
+            return;
+        }
+
+        auto const operation = async_operation
+            .or_else([this]
+            {
+                return std::optional{ m_maintenance_thread.do_work_async().share() };
+            })
+            .and_then([this](std::shared_future<void> const& future)
+            {
+                auto const status = future.wait_for(std::chrono::microseconds(worker_threads_result_max_wait_time));
+                return status == std::future_status::ready ? std::nullopt : std::optional{ future };
+            });
+
+        m_maintenance_timer.expires_after(asio::chrono::seconds(m_server_options->cleanup_interval_seconds));
+        m_maintenance_timer.async_wait(std::bind(&tcp_server::maintenance_timer_handler, this, std::placeholders::_1, operation));
     }
 };

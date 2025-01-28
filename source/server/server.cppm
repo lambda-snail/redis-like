@@ -117,15 +117,12 @@ namespace LambdaSnail::server
          * Periodically cleans up pending deletes and tests a few random keys from each database
          * for expiry.
          */
-        void do_work();
+        void do_work() const;
+        [[nodiscard]] std::future<void> do_work_async() const;
 
         void add_database(std::shared_ptr<database> database);
-        //void remove_database(std::shared_ptr<database> database);
-
-        ~timeout_worker();
     private:
         std::shared_ptr<database> m_database; // TODO: Replace with reference to server that can fetch database list (copy to new thread)
-        std::thread m_worker_thread;
         std::shared_ptr<LambdaSnail::logging::logger> m_logger{};
     };
 }
