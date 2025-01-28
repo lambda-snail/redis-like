@@ -53,7 +53,7 @@ int main(int argc, char const** argv)
 
     tcp_server runner(logger);
     //runner.run(6379, dispatch, buffer_pool);
-    runner.run(options->port, database, buffer_pool);
+    runner.run(options->port, database, maintenance_thread, buffer_pool);
 
     return 0;
 }

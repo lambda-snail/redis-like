@@ -117,7 +117,11 @@ public:
     {
     }
 
-    void run(uint16_t port, std::shared_ptr<LambdaSnail::server::database> database, LambdaSnail::memory::buffer_pool &buffer_pool)
+    void run(
+        uint16_t port,
+        std::shared_ptr<LambdaSnail::server::database> database,
+        LambdaSnail::server::timeout_worker& maintenance_thread,
+        LambdaSnail::memory::buffer_pool &buffer_pool)
     {
         ZoneScoped;
 
@@ -144,6 +148,19 @@ public:
                 });
 
             asio::co_spawn(m_context, listener(port, database, buffer_pool, m_logger), asio::detached);
+
+            asio::steady_timer maintenance_timer(m_context, asio::chrono::seconds(10));
+            maintenance_timer.async_wait([&worker = maintenance_thread, this](std::error_code ec)
+            {
+                if (not ec)
+                {
+                    worker.do_work();
+                }
+                else
+                {
+                    this->m_logger->get_network_logger()->error("Error encountered by maintenance timer: {}", ec.message());
+                }
+            });
 
             m_context.run();
 
