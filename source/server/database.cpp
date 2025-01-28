@@ -202,14 +202,22 @@ void LambdaSnail::server::database::handle_deletes(time_point_t now, size_t max_
 
     m_delete_keys.clear();
 
+    // A rare edge case perhaps, but no need to create random
+    // generator if this holds true
+    if (m_store.empty())
+    {
+        return;
+    }
+
     // Now we test a few keys at random to see if they are expired
     std::mt19937_64 random_engine( now.time_since_epoch().count() );
+    std::uniform_int_distribution<size_t> distribution(0, m_store.size());
 
     auto store_it = m_store.begin();
     size_t current_index = 0;
     for (size_t i = 0; i < max_num_tests; ++i)
     {
-        auto const incr = random_engine();
+        auto const incr = distribution(random_engine); //random_engine();
         std::ranges::advance(store_it, static_cast<std::iter_difference_t<store_t::iterator>>(incr));
         if (store_it == m_store.end())
         {
