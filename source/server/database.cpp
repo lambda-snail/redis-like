@@ -173,7 +173,7 @@ void LambdaSnail::server::database::set_value(std::string const& key, std::strin
     m_store[key] = value_wrapper;
 }
 
-void LambdaSnail::server::database::test_keys(time_point_t now, size_t max_num_tests)
+void LambdaSnail::server::database::handle_deletes(time_point_t now, size_t max_num_tests)
 {
     // For simplicity, we lock the entire database while performing maintenance
     auto lock = std::unique_lock{ m_mutex };
@@ -187,25 +187,18 @@ void LambdaSnail::server::database::test_keys(time_point_t now, size_t max_num_t
             continue;
         }
 
-        auto const entry = entry_it->second;
-
         // Even if the version differs, the entry may have expired, so we check for that
         // case as well, even if the delete reason is not due to an expired key.
         // As an extra check we also abort the operation if the delete flag is not set.
-        if (entry->version != expiry.version
-            and not entry->has_expired(now)
-            or not entry->is_deleted())
+        if (entry_it->second->version != expiry.version
+            and not entry_it->second->has_expired(now)
+            or not entry_it->second->is_deleted())
         {
             continue;
         }
 
-        // The key could have been deleted multiple times for various reasons and from multiple
-        // threads, so we need to check that it actually exists one more time
-        auto const value_it = m_store.find(key);
-        if (value_it != m_store.end())
-        {
-            m_store.unsafe_erase(key);
-        }
+        // If we get here, we are confident the key can be deleted
+        m_store.unsafe_erase(entry_it);
     }
 
     m_delete_keys.clear();
@@ -221,11 +214,10 @@ void LambdaSnail::server::database::test_keys(time_point_t now, size_t max_num_t
         std::ranges::advance(store_it, static_cast<std::iter_difference_t<store_t::iterator>>(incr));
         if (store_it == m_store.end())
         {
-            continue;
+            break;
         }
 
-        auto const value = store_it->second;
-        if (value->has_expired(now))
+        if (store_it->second->has_expired(now))
         {
             store_it = m_store.unsafe_erase(store_it);
         }

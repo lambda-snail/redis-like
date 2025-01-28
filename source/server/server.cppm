@@ -63,7 +63,7 @@ namespace LambdaSnail::server
          * Implements the active expiry by testing some random keys in the database among the
          * possible keys with expiry.
          */
-        void test_keys(time_point_t now, size_t max_num_tests = 10);
+        void handle_deletes(time_point_t now, size_t max_num_tests = 10);
 
     private:
         memory::buffer_allocator<char>& m_string_allocator;

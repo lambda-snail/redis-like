@@ -13,7 +13,7 @@ namespace LambdaSnail::server
         time_point_t now = std::chrono::system_clock::now();
         if (m_database)
         {
-            m_database->test_keys(now);
+            m_database->handle_deletes(now);
         }
     }
 
