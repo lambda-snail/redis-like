@@ -21,12 +21,23 @@ namespace LambdaSnail::server
 
     struct entry_info
     {
+        enum class entry_flags
+        {
+            no_state = 0,
+            deleted = 1 << 0
+        };
+
         typedef uint32_t version_t;
+        typedef uint32_t flags_t;
+
         std::string data;
         version_t version{};
+        flags_t flags{};
         time_point_t ttl{ time_point_t::min() };
         [[nodiscard]] bool has_ttl() const;
         [[nodiscard]] bool has_expired(time_point_t now) const;
+        [[nodiscard]] bool is_deleted() const;
+        void set_deleted();
     };
 
     using store_t = tbb::concurrent_unordered_map<std::string, std::shared_ptr<entry_info>>;

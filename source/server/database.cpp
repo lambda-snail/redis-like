@@ -73,6 +73,16 @@ namespace LambdaSnail::server
         return ttl <= now;
     }
 
+    bool entry_info::is_deleted() const
+    {
+        return flags & static_cast<flags_t>(entry_flags::deleted);
+    }
+
+    void entry_info::set_deleted()
+    {
+        flags |= static_cast<flags_t>(entry_flags::deleted);
+    }
+
     database::database(memory::buffer_allocator<char> &string_allocator) : m_string_allocator(string_allocator)
     {
         m_command_map =
@@ -114,10 +124,10 @@ std::string LambdaSnail::server::database::process_command(resp::data_view messa
 
 std::shared_ptr<LambdaSnail::server::entry_info> LambdaSnail::server::database::get_value(std::string const& key)
 {
-    auto lock = std::shared_lock{m_mutex};
+    auto lock = std::shared_lock{ m_mutex };
 
     auto const it = m_store.find(key);
-    if (it == m_store.end())
+    if (it == m_store.end() or it->second->is_deleted())
     {
         return nullptr;
     }
@@ -127,7 +137,7 @@ std::shared_ptr<LambdaSnail::server::entry_info> LambdaSnail::server::database::
         std::chrono::time_point<std::chrono::system_clock> const now = std::chrono::system_clock::now();
         if (it->second->ttl < now)
         {
-            // Will be cleaned up in the background
+            // Will be cleaned up in the background by the maintenance thread
             m_delete_keys.insert[key] = expiry_info
             {
                 .version = it->second->version,
@@ -152,8 +162,13 @@ void LambdaSnail::server::database::set_value(std::string const& key, std::strin
                                                           : it->second;
 
     value_wrapper->data = std::string(value);
-    ++value_wrapper->version;
     value_wrapper->ttl = ttl;
+    value_wrapper->flags = {};
+
+    // Incrementing the version allows us to ignore the queue of entries to
+    // be deleted, as the maintenance thread will see that the version is different
+    // and abort the delete (unless exactly 2^32 sets are called before the next cleanup ...)
+    ++value_wrapper->version;
 
     m_store[key] = value_wrapper;
 }
@@ -175,8 +190,11 @@ void LambdaSnail::server::database::test_keys(time_point_t now, size_t max_num_t
         auto const entry = entry_it->second;
 
         // Even if the version differs, the entry may have expired, so we check for that
-        // case as well, even if the delete reason is not due to an expired key
-        if (entry->version != expiry.version and not entry->has_expired(now))
+        // case as well, even if the delete reason is not due to an expired key.
+        // As an extra check we also abort the operation if the delete flag is not set.
+        if (entry->version != expiry.version
+            and not entry->has_expired(now)
+            or not entry->is_deleted())
         {
             continue;
         }
