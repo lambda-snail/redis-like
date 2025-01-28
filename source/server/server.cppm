@@ -93,10 +93,12 @@ namespace LambdaSnail::server
          * updates in two concurrent data structures during regular operations (GET, SET).
          * TODO: Use queue instead?
          */
-        tbb::concurrent_unordered_map<std::string, expiry_info> m_delete_keys;
+        //tbb::concurrent_unordered_map<std::string, expiry_info> m_delete_keys;
+        std::unordered_map<std::string, expiry_info> m_delete_keys;
 
         // TODO: May need different structure for this when we can support multiple databases
-        tbb::concurrent_unordered_map<std::string_view, ICommandHandler* const> m_command_map;
+        //tbb::concurrent_unordered_map<std::string_view, ICommandHandler* const> m_command_map;
+        std::unordered_map<std::string_view, ICommandHandler* const> m_command_map;
 
         /**
          * The key-value store is a concurrent queue, so is "safe" to access from multiple threads,

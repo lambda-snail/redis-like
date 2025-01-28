@@ -7,6 +7,7 @@ module;
 #include <asio/deferred.hpp>
 #include <asio/detached.hpp>
 #include <asio/ip/tcp.hpp>
+#include <asio/placeholders.hpp>
 #include <asio/signal_set.hpp>
 #include <asio/write.hpp>
 #include <cstdio>
@@ -113,14 +114,19 @@ asio::awaitable<void> listener(
 export class tcp_server
 {
 public:
-    tcp_server(std::shared_ptr<LambdaSnail::logging::logger> logger) : m_logger(logger)
+    tcp_server(
+        LambdaSnail::server::timeout_worker& maintenance_thread,
+        std::shared_ptr<LambdaSnail::logging::logger> logger)
+    :
+        m_logger(logger),
+        m_maintenance_timer(m_context),
+        m_maintenance_thread(maintenance_thread)
     {
     }
 
     void run(
         uint16_t port,
         std::shared_ptr<LambdaSnail::server::database> database,
-        LambdaSnail::server::timeout_worker& maintenance_thread,
         LambdaSnail::memory::buffer_pool &buffer_pool)
     {
         ZoneScoped;
@@ -144,23 +150,14 @@ public:
 #else
                     m_logger->get_system_logger()->info("The system received signal {}", signal);
 #endif
+                    m_maintenance_timer.cancel();
                     m_context.stop();
                 });
 
             asio::co_spawn(m_context, listener(port, database, buffer_pool, m_logger), asio::detached);
 
-            asio::steady_timer maintenance_timer(m_context, asio::chrono::seconds(10));
-            maintenance_timer.async_wait([&worker = maintenance_thread, this](std::error_code ec)
-            {
-                if (not ec)
-                {
-                    worker.do_work();
-                }
-                else
-                {
-                    this->m_logger->get_network_logger()->error("Error encountered by maintenance timer: {}", ec.message());
-                }
-            });
+            m_maintenance_timer.expires_after(asio::chrono::seconds(10));
+            m_maintenance_timer.async_wait(std::bind(&tcp_server::maintenance_timer_handler, this, std::placeholders::_1));
 
             m_context.run();
 
@@ -183,4 +180,20 @@ private:
     //asio::thread_pool m_context { m_thread_pool_size };
 
     std::shared_ptr<LambdaSnail::logging::logger> m_logger;
+
+    asio::steady_timer m_maintenance_timer;
+    LambdaSnail::server::timeout_worker& m_maintenance_thread;
+    void maintenance_timer_handler(std::error_code const ec)
+    {
+        if (not ec)
+        {
+            m_maintenance_thread.do_work();
+            m_maintenance_timer.expires_after(asio::chrono::seconds(10));
+            m_maintenance_timer.async_wait(std::bind(&tcp_server::maintenance_timer_handler, this, std::placeholders::_1));
+        }
+        else
+        {
+            this->m_logger->get_network_logger()->error("Error encountered by maintenance timer: {}", ec.message());
+        }
+    }
 };

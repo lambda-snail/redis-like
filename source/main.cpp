@@ -51,9 +51,9 @@ int main(int argc, char const** argv)
     LambdaSnail::server::timeout_worker maintenance_thread(logger);
     maintenance_thread.add_database(database);
 
-    tcp_server runner(logger);
+    tcp_server runner(maintenance_thread, logger);
     //runner.run(6379, dispatch, buffer_pool);
-    runner.run(options->port, database, maintenance_thread, buffer_pool);
+    runner.run(options->port, database, buffer_pool);
 
     return 0;
 }

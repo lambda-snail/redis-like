@@ -84,7 +84,7 @@ namespace LambdaSnail::server
 
     database::database(memory::buffer_allocator<char> &string_allocator) : m_string_allocator(string_allocator)
     {
-        m_command_map =
+        m_command_map = std::unordered_map<std::string_view, ICommandHandler* const>
         {
             std::pair("PING", new ping_handler),
             std::pair("ECHO", new echo_handler),
@@ -189,8 +189,8 @@ void LambdaSnail::server::database::handle_deletes(time_point_t now, size_t max_
         // Even if the version differs, the entry may have expired, so we check for that
         // case as well, even if the delete reason is not due to an expired key.
         // As an extra check we also abort the operation if the delete flag is not set.
-        if (entry_it->second->version != expiry.version
-            and not entry_it->second->has_expired(now)
+        if ((entry_it->second->version != expiry.version
+            or not entry_it->second->has_expired(now))
             or not entry_it->second->is_deleted())
         {
             continue;
