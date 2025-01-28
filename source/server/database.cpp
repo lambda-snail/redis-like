@@ -7,7 +7,6 @@ module;
 #include <future>
 #include <iomanip>
 #include <random>
-#include <semaphore>
 #include <shared_mutex>
 #include <string>
 
@@ -138,7 +137,7 @@ std::shared_ptr<LambdaSnail::server::entry_info> LambdaSnail::server::database::
         if (it->second->ttl < now)
         {
             // Will be cleaned up in the background by the maintenance thread
-            m_delete_keys.insert[key] = expiry_info
+            m_delete_keys[key] = expiry_info
             {
                 .version = it->second->version,
                 .delete_reason = delete_reason::ttl_expiry
@@ -204,7 +203,7 @@ void LambdaSnail::server::database::handle_deletes(time_point_t now, size_t max_
     m_delete_keys.clear();
 
     // Now we test a few keys at random to see if they are expired
-    std::mt19937_64 random_engine(now);
+    std::mt19937_64 random_engine( now.time_since_epoch().count() );
 
     auto store_it = m_store.begin();
     size_t current_index = 0;

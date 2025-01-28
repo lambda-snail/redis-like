@@ -30,7 +30,7 @@ using tcp_socket_t = default_token_t::as_default_on_t<asio::ip::tcp::socket>;
 
 asio::awaitable<void> connection(
     tcp_socket_t socket,
-    LambdaSnail::server::database& dispatch,
+    std::shared_ptr<LambdaSnail::server::database> database,
     LambdaSnail::memory::buffer_pool& buffer_pool,
     std::shared_ptr<LambdaSnail::logging::logger> logger)
 {
@@ -65,7 +65,7 @@ asio::awaitable<void> connection(
             }
 
             LambdaSnail::resp::data_view resp_data(std::string_view(buffer_info.buffer, n));
-            std::string response = dispatch.process_command(resp_data);
+            std::string response = database->process_command(resp_data);
 
             auto [ec_w, n_written] = co_await async_write(socket, asio::buffer(response, response.size()), asio::as_tuple(asio::use_awaitable));
             if (ec) [[unlikely]]
@@ -84,7 +84,7 @@ asio::awaitable<void> connection(
 
 asio::awaitable<void> listener(
     uint16_t port,
-    LambdaSnail::server::database& dispatch,
+    std::shared_ptr<LambdaSnail::server::database> database,
     LambdaSnail::memory::buffer_pool& buffer_pool,
     std::shared_ptr<LambdaSnail::logging::logger> logger)
 {
@@ -106,19 +106,18 @@ asio::awaitable<void> listener(
             break;
         }
 
-        co_spawn(executor, connection(std::move(socket), dispatch, buffer_pool, logger), asio::detached);
+        co_spawn(executor, connection(std::move(socket), database, buffer_pool, logger), asio::detached);
     }
 }
 
-// TODO: Move this out from here
-export class runner
+export class tcp_server
 {
 public:
-    runner(std::shared_ptr<LambdaSnail::logging::logger> logger) : m_logger(logger)
+    tcp_server(std::shared_ptr<LambdaSnail::logging::logger> logger) : m_logger(logger)
     {
     }
 
-    void run(uint16_t port, LambdaSnail::server::database &dispatch, LambdaSnail::memory::buffer_pool &buffer_pool)
+    void run(uint16_t port, std::shared_ptr<LambdaSnail::server::database> database, LambdaSnail::memory::buffer_pool &buffer_pool)
     {
         ZoneScoped;
 
@@ -144,7 +143,7 @@ public:
                     m_context.stop();
                 });
 
-            asio::co_spawn(m_context, listener(port, dispatch, buffer_pool, m_logger), asio::detached);
+            asio::co_spawn(m_context, listener(port, database, buffer_pool, m_logger), asio::detached);
 
             m_context.run();
 
@@ -157,17 +156,12 @@ public:
         }
     }
 
-    ~runner()
+    ~tcp_server()
     {
         m_logger->get_system_logger()->info("The server is shutting down");
     }
 
 private:
-    size_t m_thread_pool_size = 8;
-
-    // We can use a single threaded context or a thread pool
-    // TODO: Both of these need to be tested and evaluated. Perhaps the usage can
-    // be a configuration at start?
     asio::io_context m_context { 1 };
     //asio::thread_pool m_context { m_thread_pool_size };
 

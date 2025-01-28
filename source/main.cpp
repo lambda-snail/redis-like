@@ -46,11 +46,14 @@ int main(int argc, char const** argv)
     LambdaSnail::memory::buffer_pool buffer_pool{};
     LambdaSnail::memory::buffer_allocator<char> allocator{buffer_pool};
 
-    LambdaSnail::server::database dispatch{allocator};
+    auto database = std::make_shared<LambdaSnail::server::database>(allocator);
 
-    runner runner(logger);
+    LambdaSnail::server::timeout_worker maintenance_thread(logger);
+    maintenance_thread.add_database(database);
+
+    tcp_server runner(logger);
     //runner.run(6379, dispatch, buffer_pool);
-    runner.run(options->port, dispatch, buffer_pool);
+    runner.run(options->port, database, buffer_pool);
 
     return 0;
 }

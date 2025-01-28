@@ -1,6 +1,7 @@
 module;
 
 #include <atomic>
+#include <stop_token>
 #include <thread>
 #include <future>
 #include <shared_mutex>
@@ -112,9 +113,13 @@ namespace LambdaSnail::server
      */
     export class timeout_worker
     {
-        // Periodically test a few keys from each database
-        // Can we efficiently store keys that have timestamps?
     public:
+        explicit timeout_worker(std::shared_ptr<LambdaSnail::logging::logger> m_logger);
+
+        /**
+         * Periodically cleans up pending deletes and tests a few random keys from each database
+         * for expiry.
+         */
         void do_work();
 
         void add_database(std::shared_ptr<database> database);
@@ -122,8 +127,8 @@ namespace LambdaSnail::server
 
         ~timeout_worker();
     private:
-        std::shared_ptr<database> m_database;
+        std::shared_ptr<database> m_database; // TODO: Replace with reference to server that can fetch database list (copy to new thread)
         std::thread m_worker_thread;
-        std::shared_ptr<LambdaSnail::logging::logger> m_logger;
+        std::shared_ptr<LambdaSnail::logging::logger> m_logger{};
     };
 }
