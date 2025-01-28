@@ -52,7 +52,7 @@ namespace LambdaSnail::server
         explicit database(memory::buffer_allocator<char>& string_allocator);
         [[nodiscard]] std::string process_command(resp::data_view message);
 
-        // TODO: should probably return a variant or expected so we acn return an error as well
+        // TODO: should probably return a variant or expected so we can return an error as well
         [[nodiscard]] std::shared_ptr<entry_info> get_value(std::string const& key);
 
         void set_value(std::string const& key, std::string_view value, std::chrono::time_point<std::chrono::system_clock> ttl = {});
