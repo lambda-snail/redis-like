@@ -1,14 +1,11 @@
 module;
 
 #include <atomic>
-#include <stop_token>
+#include <unordered_map>
 #include <thread>
 #include <future>
 #include <shared_mutex>
 #include <string>
-
-#include "oneapi/tbb/concurrent_unordered_map.h"
-//#include "oneapi/tbb/concurrent_set.h"
 
 export module server;
 
@@ -41,7 +38,7 @@ namespace LambdaSnail::server
         void set_deleted();
     };
 
-    using store_t = tbb::concurrent_unordered_map<std::string, std::shared_ptr<entry_info>>;
+    using store_t = std::unordered_map<std::string, std::shared_ptr<entry_info>>;
 
     export struct ICommandHandler
     {
@@ -93,11 +90,9 @@ namespace LambdaSnail::server
          * updates in two concurrent data structures during regular operations (GET, SET).
          * TODO: Use queue instead?
          */
-        //tbb::concurrent_unordered_map<std::string, expiry_info> m_delete_keys;
         std::unordered_map<std::string, expiry_info> m_delete_keys;
 
         // TODO: May need different structure for this when we can support multiple databases
-        //tbb::concurrent_unordered_map<std::string_view, ICommandHandler* const> m_command_map;
         std::unordered_map<std::string_view, ICommandHandler* const> m_command_map;
 
         /**

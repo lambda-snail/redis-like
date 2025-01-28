@@ -197,7 +197,8 @@ void LambdaSnail::server::database::handle_deletes(time_point_t now, size_t max_
         }
 
         // If we get here, we are confident the key can be deleted
-        m_store.unsafe_erase(entry_it);
+        //m_store.unsafe_erase(entry_it);
+        m_store.erase(entry_it);
     }
 
     m_delete_keys.clear();
@@ -213,20 +214,20 @@ void LambdaSnail::server::database::handle_deletes(time_point_t now, size_t max_
     std::mt19937_64 random_engine( now.time_since_epoch().count() );
     std::uniform_int_distribution<size_t> distribution(0, m_store.size());
 
-    auto store_it = m_store.begin();
-    size_t current_index = 0;
     for (size_t i = 0; i < max_num_tests; ++i)
     {
+        auto store_it = m_store.begin();
         auto const incr = distribution(random_engine); //random_engine();
-        std::ranges::advance(store_it, static_cast<std::iter_difference_t<store_t::iterator>>(incr));
+        std::advance(store_it, static_cast<std::iter_difference_t<store_t::iterator>>(incr));
+
         if (store_it == m_store.end())
         {
             break;
         }
 
-        if (store_it->second->has_expired(now))
+        if (store_it->second->has_ttl() and store_it->second->has_expired(now))
         {
-            store_it = m_store.unsafe_erase(store_it);
+            m_store.erase(store_it);
         }
     }
 }
