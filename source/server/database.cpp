@@ -106,8 +106,8 @@ std::string LambdaSnail::server::database::process_command(resp::data_view messa
         return {"-Unable to parse request\r\n"};
     }
 
-    auto const _1 = request[0].materialize(resp::BulkString{});
-    auto const cmd_it = m_command_map.find(_1);
+    auto const command_name = request[0].materialize(resp::BulkString{});
+    auto const cmd_it = m_command_map.find(command_name);
     if (cmd_it != m_command_map.end())
     {
         auto *const command = cmd_it->second;

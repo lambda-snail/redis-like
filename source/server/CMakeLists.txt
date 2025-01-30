@@ -13,7 +13,7 @@ target_sources(server
 
 add_library(LambdaSnail::server ALIAS server)
 
-target_link_libraries(server PRIVATE LambdaSnail::logging LambdaSnail::memory LambdaSnail::resp TBB::tbb)
+target_link_libraries(server PRIVATE LambdaSnail::logging LambdaSnail::memory LambdaSnail::resp)
 
 target_link_libraries(server PUBLIC TracyClient)
 target_include_directories(server PUBLIC ${Tracy_SOURCE_DIR}/public)
