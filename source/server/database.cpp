@@ -211,7 +211,7 @@ void LambdaSnail::server::database::handle_deletes(time_point_t now, size_t max_
     }
 
     // Now we test a few keys at random to see if they are expired
-    std::mt19937_64 random_engine( now.time_since_epoch().count() );
+    std::mt19937_64 random_engine( static_cast<uint64_t>(now.time_since_epoch().count()) );
     std::uniform_int_distribution<size_t> distribution(0, m_store.size());
 
     for (size_t i = 0; i < max_num_tests; ++i)

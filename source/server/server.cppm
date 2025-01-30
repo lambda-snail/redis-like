@@ -1,6 +1,7 @@
 module;
 
 #include <atomic>
+#include <expected>
 #include <unordered_map>
 #include <thread>
 #include <future>
@@ -102,6 +103,24 @@ namespace LambdaSnail::server
          * duration.
          */
         mutable std::shared_mutex m_mutex{};
+    };
+
+    class server
+    {
+    public:
+        typedef size_t database_handle_t;
+        typedef size_t database_size_t;
+        typedef std::vector<std::shared_ptr<database>>::iterator database_iterator_t;
+
+        database_handle_t create_database();
+        [[nodiscard]] database_iterator_t get_database(database_handle_t database_no) const;
+        [[nodiscard]] database_size_t get_database_size() const;
+
+        [[nodiscard]] database_iterator_t begin() const;
+        [[nodiscard]] database_iterator_t end() const;
+
+    private:
+        std::vector<std::shared_ptr<database>> m_databases{};
     };
 
     /**
