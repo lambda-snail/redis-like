@@ -18,50 +18,6 @@ module server;
 
 namespace LambdaSnail::server
 {
-    struct ping_handler final : public ICommandHandler
-    {
-        [[nodiscard]] std::string execute(std::vector<resp::data_view> const &args) noexcept override;
-
-        ~ping_handler() override = default;
-    };
-
-    struct echo_handler final : public ICommandHandler
-    {
-        [[nodiscard]] std::string execute(std::vector<resp::data_view> const &args) noexcept override;
-
-        ~echo_handler() override = default;
-    };
-
-    template<typename TDatabase>
-    struct get_handler final : public ICommandHandler
-    {
-        explicit get_handler(TDatabase &database) : m_database(database)
-        {
-        }
-
-        [[nodiscard]] std::string execute(std::vector<resp::data_view> const &args) noexcept override;
-
-        ~get_handler() override = default;
-
-    private:
-        TDatabase &m_database;
-    };
-
-    template<typename TDatabase>
-    struct set_handler final : public ICommandHandler
-    {
-        explicit set_handler(TDatabase &database) : m_database(database)
-        {
-        }
-
-        [[nodiscard]] std::string execute(std::vector<resp::data_view> const &args) noexcept override;
-
-        ~set_handler() override = default;
-
-    private:
-        TDatabase &m_database;
-    };
-
     bool entry_info::has_ttl() const
     {
         return ttl != std::chrono::time_point<std::chrono::system_clock>::min();
@@ -247,6 +203,13 @@ std::string LambdaSnail::server::echo_handler::execute(std::vector<resp::data_vi
     assert(args.size() == 2);
     auto const str = args[1].materialize(resp::BulkString{});
     return "$" + std::to_string(str.size()) + "\r\n" + std::string(str.data(), str.size()) + "\r\n";
+}
+
+LambdaSnail::server::static_response_handler::static_response_handler(std::string_view message) noexcept : m_message(message) { }
+
+std::string LambdaSnail::server::static_response_handler::execute(std::vector<resp::data_view> const &args) noexcept
+{
+    return std::move(std::string(m_message));
 }
 
 template<typename TDatabase>

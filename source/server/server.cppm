@@ -1,12 +1,13 @@
 module;
 
 #include <atomic>
-#include <expected>
+#include <functional>
 #include <unordered_map>
 #include <thread>
 #include <future>
 #include <shared_mutex>
 #include <string>
+#include <variant>
 
 export module server;
 
@@ -46,6 +47,63 @@ namespace LambdaSnail::server
         [[nodiscard]] virtual std::string execute(std::vector<resp::data_view> const& args) noexcept = 0;
         virtual ~ICommandHandler() = default;
     };
+
+    struct ping_handler final : public ICommandHandler
+    {
+        [[nodiscard]] std::string execute(std::vector<resp::data_view> const &args) noexcept override;
+
+        ~ping_handler() override = default;
+    };
+
+    struct echo_handler final : public ICommandHandler
+    {
+        [[nodiscard]] std::string execute(std::vector<resp::data_view> const &args) noexcept override;
+
+        ~echo_handler() override = default;
+    };
+
+    struct static_response_handler final : public ICommandHandler
+    {
+        explicit static_response_handler(std::string_view) noexcept;
+        [[nodiscard]] std::string execute(std::vector<resp::data_view> const &args) noexcept override;
+        ~static_response_handler() override = default;
+    private:
+        std::string m_message;
+    };
+
+    template<typename TDatabase>
+    struct get_handler final : public ICommandHandler
+    {
+        explicit get_handler(std::shared_ptr<TDatabase> database) noexcept : m_database(database)
+        {
+        }
+
+        [[nodiscard]] std::string execute(std::vector<resp::data_view> const &args) noexcept override;
+
+        get_handler(get_handler&& handler) noexcept : m_database(handler.m_database) {  }
+
+        ~get_handler() override = default;
+
+    private:
+        std::shared_ptr<TDatabase> m_database;
+    };
+
+    template<typename TDatabase>
+    struct set_handler final : public ICommandHandler
+    {
+        explicit set_handler(std::shared_ptr<TDatabase> database) : m_database(database)
+        {
+        }
+
+        [[nodiscard]] std::string execute(std::vector<resp::data_view> const &args) noexcept override;
+
+        ~set_handler() override = default;
+
+    private:
+        std::shared_ptr<TDatabase> m_database;
+    };
+
+
 
     export class database
     {
@@ -132,7 +190,9 @@ namespace LambdaSnail::server
 
         void set_database(server::database_handle_t index);
     private:
-        static std::unordered_map<std::string_view, ICommandHandler* const> s_command_map;
+        [[nodiscard]] auto get_command(std::string_view command_name) const;
+
+        static std::unordered_map<std::string_view, std::function<ICommandHandler*()>> s_command_map;
         server& m_server;
 
         server::database_handle_t m_current_db{};
