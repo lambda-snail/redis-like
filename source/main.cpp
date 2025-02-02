@@ -42,7 +42,7 @@ int main(int argc, char const** argv)
     LambdaSnail::memory::buffer_pool buffer_pool{};
     LambdaSnail::memory::buffer_allocator<char> allocator{buffer_pool};
 
-    auto database = std::make_shared<LambdaSnail::server::database>(allocator);
+    auto database = std::make_shared<LambdaSnail::server::database>();
 
     LambdaSnail::server::timeout_worker maintenance_thread(logger);
     maintenance_thread.add_database(database);

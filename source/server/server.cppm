@@ -16,7 +16,7 @@ import resp;
 
 namespace LambdaSnail::server
 {
-    using time_point_t = std::chrono::time_point<std::chrono::system_clock>;
+    export typedef std::chrono::time_point<std::chrono::system_clock> time_point_t;
 
     struct entry_info
     {
@@ -50,8 +50,8 @@ namespace LambdaSnail::server
     export class database
     {
     public:
-        explicit database(memory::buffer_allocator<char>& string_allocator);
-        [[nodiscard]] std::string process_command(resp::data_view message);
+        explicit database();
+        //[[nodiscard]] std::string process_command(resp::data_view message);
 
         // TODO: should probably return a variant or expected so we can return an error as well
         [[nodiscard]] std::shared_ptr<entry_info> get_value(std::string const& key);
@@ -65,8 +65,6 @@ namespace LambdaSnail::server
         void handle_deletes(time_point_t now, size_t max_num_tests = 10);
 
     private:
-        memory::buffer_allocator<char>& m_string_allocator;
-
         store_t m_store{1000};
 
         enum class delete_reason : uint8_t
@@ -105,22 +103,39 @@ namespace LambdaSnail::server
         mutable std::shared_mutex m_mutex{};
     };
 
+    /**
+     * A server is a collection of databases and the member functions used to manage these.
+     */
     class server
     {
     public:
         typedef size_t database_handle_t;
         typedef size_t database_size_t;
-        typedef std::vector<std::shared_ptr<database>>::iterator database_iterator_t;
+        typedef std::vector<std::shared_ptr<database>>::const_iterator database_iterator_t;
 
         database_handle_t create_database();
-        [[nodiscard]] database_iterator_t get_database(database_handle_t database_no) const;
-        [[nodiscard]] database_size_t get_database_size() const;
+        [[nodiscard]] std::shared_ptr<database> get_database(database_handle_t database_no) const;
+        //[[nodiscard]] database_size_t get_database_size(database_handle_t database_no) const;
 
         [[nodiscard]] database_iterator_t begin() const;
         [[nodiscard]] database_iterator_t end() const;
 
     private:
         std::vector<std::shared_ptr<database>> m_databases{};
+    };
+
+    class command_dispatch
+    {
+    public:
+        explicit command_dispatch(server& server);
+        [[nodiscard]] std::string process_command(resp::data_view message);
+
+        void set_database(server::database_handle_t index);
+    private:
+        static std::unordered_map<std::string_view, ICommandHandler* const> s_command_map;
+        server& m_server;
+
+        server::database_handle_t m_current_db{};
     };
 
     /**

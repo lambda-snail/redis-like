@@ -82,44 +82,44 @@ namespace LambdaSnail::server
         flags |= static_cast<flags_t>(entry_flags::deleted);
     }
 
-    database::database(memory::buffer_allocator<char> &string_allocator) : m_string_allocator(string_allocator)
+    database::database()
     {
-        m_command_map = std::unordered_map<std::string_view, ICommandHandler* const>
-        {
-            std::pair("PING", new ping_handler),
-            std::pair("ECHO", new echo_handler),
-            std::pair("GET", new get_handler<database>{ *this }),
-            std::pair("SET", new set_handler<database>{ *this }),
-        };
+        // m_command_map = std::unordered_map<std::string_view, ICommandHandler* const>
+        // {
+        //     std::pair("PING", new ping_handler),
+        //     std::pair("ECHO", new echo_handler),
+        //     std::pair("GET", new get_handler<database>{ *this }),
+        //     std::pair("SET", new set_handler<database>{ *this }),
+        // };
     }
 }
 
 
-std::string LambdaSnail::server::database::process_command(resp::data_view message)
-{
-    ZoneNamed(ProcessCommand, true);
-
-    auto const request = message.materialize(resp::Array{});
-
-    if (request.size() == 0 or request[0].type != LambdaSnail::resp::data_type::BulkString)
-    {
-        return {"-Unable to parse request\r\n"};
-    }
-
-    auto const command_name = request[0].materialize(resp::BulkString{});
-    auto const cmd_it = m_command_map.find(command_name);
-    if (cmd_it != m_command_map.end())
-    {
-        auto *const command = cmd_it->second;
-        if (command)
-        {
-            std::string s = command->execute(request);
-            return s;
-        }
-    }
-
-    return {"-Unable to find command\r\n"};
-}
+// std::string LambdaSnail::server::database::process_command(resp::data_view message)
+// {
+//     ZoneNamed(ProcessCommand, true);
+//
+//     auto const request = message.materialize(resp::Array{});
+//
+//     if (request.size() == 0 or request[0].type != LambdaSnail::resp::data_type::BulkString)
+//     {
+//         return {"-Unable to parse request\r\n"};
+//     }
+//
+//     auto const command_name = request[0].materialize(resp::BulkString{});
+//     auto const cmd_it = m_command_map.find(command_name);
+//     if (cmd_it != m_command_map.end())
+//     {
+//         auto *const command = cmd_it->second;
+//         if (command)
+//         {
+//             std::string s = command->execute(request);
+//             return s;
+//         }
+//     }
+//
+//     return {"-Unable to find command\r\n"};
+// }
 
 std::shared_ptr<LambdaSnail::server::entry_info> LambdaSnail::server::database::get_value(std::string const& key)
 {
