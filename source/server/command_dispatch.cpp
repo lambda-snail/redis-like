@@ -25,6 +25,32 @@ namespace LambdaSnail::server
 
     }
 
+    command_handler command_dispatch::get_command(std::string_view command_name) const
+    {
+        command_handler handler{};
+
+        // TODO: Find a nicer way to handle this
+        switch (command_name[0])
+        {
+            case 'P': // "PING"
+                handler.create<ping_handler>();
+                break;
+            case 'E': // "ECHO"
+                handler.create<echo_handler>();
+                break;
+            case 'G': // "GET"
+                handler.create<get_handler<database>>(m_server.get_database(m_current_db));
+                break;
+            case 'S': //"SET"
+                handler.create<set_handler<database>>(m_server.get_database(m_current_db));
+                break;
+            default:
+                handler.create<static_response_handler>("Unknown command: " + std::string(command_name));
+        }
+
+        return handler;
+    }
+
     std::string command_dispatch::process_command(resp::data_view message)
     {
         ZoneNamed(ProcessCommand, true);
@@ -38,19 +64,8 @@ namespace LambdaSnail::server
 
         auto const command_name = request[0].materialize(resp::BulkString{});
 
-        //auto const cmd_it = s_command_map.find(command_name);
-        auto const command = get_command(command_name);
-        return command(request);
-
-        // if (cmd_it != s_command_map.end())
-        // {
-        //     auto *const command = cmd_it->second;
-        //     if (command)
-        //     {
-        //         std::string s = command->execute(request);
-        //         return s;
-        //     }
-        // }
+        auto command = get_command(command_name);
+        return command.execute(request);
 
         return {"-Unable to find command\r\n"};
     }
@@ -58,38 +73,5 @@ namespace LambdaSnail::server
     void command_dispatch::set_database(server::database_handle_t index)
     {
         m_current_db = index;
-    }
-
-    auto
-    command_dispatch::get_command(std::string_view command_name) const
-    {
-        std::variant<ping_handler, echo_handler, get_handler<database>, set_handler<database>> variant;
-
-        switch (command_name)
-        {
-            case "PING":
-                variant = ping_handler();
-                break;
-            case "ECHO":
-                variant = echo_handler();
-                break;
-            case "GET":
-                variant = std::move(get_handler<database>{ m_server.get_database(m_current_db) });
-                break;
-            case "SET":
-                variant = std::move(set_handler<database>{ m_server.get_database(m_current_db) });
-                break;
-            default:
-                variant = static_response_handler("Unknown command: " + std::string(command_name));
-        }
-
-        return [variant](std::vector<resp::data_view>& command)
-        {
-            return std::visit([command](auto&& handler)
-            {
-                return handler->exeute(command);
-            },
-            variant);
-        };
     }
 };
