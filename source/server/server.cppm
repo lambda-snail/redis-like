@@ -211,7 +211,7 @@ namespace LambdaSnail::server
     /**
      * A server is a collection of databases and the member functions used to manage these.
      */
-    class server
+    export class server
     {
     public:
         typedef size_t database_handle_t;
@@ -229,7 +229,7 @@ namespace LambdaSnail::server
         std::vector<std::shared_ptr<database>> m_databases{};
     };
 
-    class command_dispatch
+    export class command_dispatch
     {
     public:
         explicit command_dispatch(server& server);
@@ -252,7 +252,7 @@ namespace LambdaSnail::server
     export class timeout_worker
     {
     public:
-        explicit timeout_worker(std::shared_ptr<LambdaSnail::logging::logger> m_logger);
+        explicit timeout_worker(server& server, std::shared_ptr<LambdaSnail::logging::logger> m_logger);
 
         /**
          * Periodically cleans up pending deletes and tests a few random keys from each database
@@ -260,10 +260,8 @@ namespace LambdaSnail::server
          */
         void do_work() const;
         [[nodiscard]] std::future<void> do_work_async() const;
-
-        void add_database(std::shared_ptr<database> database);
     private:
-        std::shared_ptr<database> m_database; // TODO: Replace with reference to server that can fetch database list (copy to new thread)
+        LambdaSnail::server::server& m_server;
         std::shared_ptr<LambdaSnail::logging::logger> m_logger{};
     };
 }

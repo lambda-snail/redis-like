@@ -40,16 +40,16 @@ int main(int argc, char const** argv)
     logger->get_system_logger()->info("The server is starting, the version is {}", LAMBDA_SNAIL_VERSION);
 
     LambdaSnail::memory::buffer_pool buffer_pool{};
-    LambdaSnail::memory::buffer_allocator<char> allocator{buffer_pool};
+    //LambdaSnail::memory::buffer_allocator<char> allocator{buffer_pool};
 
-    auto database = std::make_shared<LambdaSnail::server::database>();
+    LambdaSnail::server::server server;
+    server.create_database();
 
-    LambdaSnail::server::timeout_worker maintenance_thread(logger);
-    maintenance_thread.add_database(database);
+    LambdaSnail::server::timeout_worker maintenance_thread(server, logger);
 
-    tcp_server runner(maintenance_thread, logger, std::move(options));
+    tcp_server runner(server, maintenance_thread, logger, std::move(options));
     //runner.run(6379, dispatch, buffer_pool);
-    runner.run(database, buffer_pool);
+    runner.run(buffer_pool); // TODO: Move parameter to ctor
 
     return 0;
 }
