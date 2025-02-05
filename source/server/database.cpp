@@ -200,7 +200,12 @@ std::string LambdaSnail::server::echo_handler::execute(std::vector<resp::data_vi
 {
     ZoneScoped;
 
-    assert(args.size() == 2);
+    if (args.size() != 2)
+    {
+        // TODO: Need clean way to specify RESP string literals
+        return "-Malformed ECHO command\r\n";
+    }
+
     auto const str = args[1].materialize(resp::BulkString{});
     return "$" + std::to_string(str.size()) + "\r\n" + std::string(str.data(), str.size()) + "\r\n";
 }
