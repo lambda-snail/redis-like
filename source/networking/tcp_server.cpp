@@ -30,7 +30,7 @@ namespace LambdaSnail::networking
     export struct server_options
     {
         uint16_t port{ 6379 };
-        uint32_t cleanup_interval_seconds{ 10 };
+        uint32_t cleanup_interval_seconds{ 1024 };
     };
 }
 

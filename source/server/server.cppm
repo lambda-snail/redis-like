@@ -25,8 +25,9 @@ namespace LambdaSnail::server
     {
         enum class entry_flags
         {
-            no_state = 0,
-            deleted = 1 << 0
+            no_state    = 0,
+            deleted     = 1 << 0,
+            hase_ttl    = 1 << 1
         };
 
         typedef uint32_t version_t;
@@ -109,7 +110,7 @@ namespace LambdaSnail::server
         // TODO: should probably return a variant or expected so we can return an error as well
         [[nodiscard]] std::shared_ptr<entry_info> get_value(std::string const& key);
 
-        void set_value(std::string const& key, std::string_view value, std::chrono::time_point<std::chrono::system_clock> ttl = {});
+        void set_value(std::string const& key, std::string_view value, time_point_t ttl = time_point_t::min());
 
         /**
          * Implements the active expiry by testing some random keys in the database among the
