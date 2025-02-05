@@ -209,19 +209,19 @@ LambdaSnail::server::static_response_handler::static_response_handler(std::strin
 
 std::string LambdaSnail::server::static_response_handler::execute(std::vector<resp::data_view> const &args) noexcept
 {
-    return std::move(std::string(m_message));
+    return std::string(m_message);
 }
 
-template<typename TDatabase>
-std::string LambdaSnail::server::get_handler<TDatabase>::execute(std::vector<resp::data_view> const &args) noexcept
+// template<typename TDatabase>
+std::string LambdaSnail::server::get_handler::execute(std::vector<LambdaSnail::resp::data_view> const &args) noexcept
 {
     ZoneScoped;
 
     if (args.size() == 2)
     {
-        auto const key = std::string(args[1].materialize(resp::BulkString{}));
+        auto const key = std::string(args[1].materialize(LambdaSnail::resp::BulkString{}));
 
-        auto value = m_database.get_value(std::move(key));
+        auto value = m_database->get_value(std::move(key));
         if (value)
         {
             return value->data + "\r\n";
@@ -231,8 +231,7 @@ std::string LambdaSnail::server::get_handler<TDatabase>::execute(std::vector<res
     return "_\r\n";
 }
 
-template<typename TDatabase>
-std::string LambdaSnail::server::set_handler<TDatabase>::execute(std::vector<resp::data_view> const &args) noexcept
+std::string LambdaSnail::server::set_handler::execute(std::vector<resp::data_view> const &args) noexcept
 {
     ZoneScoped;
 
@@ -240,7 +239,7 @@ std::string LambdaSnail::server::set_handler<TDatabase>::execute(std::vector<res
     {
         auto const key = std::string(args[1].materialize(resp::BulkString{}));
         auto value = args[2].value;
-        m_database.set_value(key, value);
+        m_database->set_value(key, value);
         return "+OK\r\n";
     }
 
@@ -263,10 +262,10 @@ std::string LambdaSnail::server::set_handler<TDatabase>::execute(std::vector<res
 
         if (option == "EX")
         {
-            m_database.set_value(key, value, std::chrono::system_clock::now() + std::chrono::seconds(ttl));
+            m_database->set_value(key, value, std::chrono::system_clock::now() + std::chrono::seconds(ttl));
         } else
         {
-            m_database.set_value(key, value, std::chrono::system_clock::now() + std::chrono::milliseconds(ttl));
+            m_database->set_value(key, value, std::chrono::system_clock::now() + std::chrono::milliseconds(ttl));
         }
 
         return "+OK\r\n";

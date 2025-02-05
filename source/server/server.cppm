@@ -5,9 +5,11 @@ module;
 #include <unordered_map>
 #include <thread>
 #include <future>
+#include <memory>
 #include <shared_mutex>
 #include <string>
 #include <type_traits>
+#include <utility>
 
 export module server;
 
@@ -48,53 +50,6 @@ namespace LambdaSnail::server
         virtual ~ICommandHandler() = default;
     };
 
-    inline constexpr size_t HandlerAlignment = 8;
-    inline constexpr size_t MaxCommandObjectSize = 32;
-
-    template<typename T>
-    concept InPlacePolymorphicObject =
-        std::is_base_of_v<ICommandHandler, T> and
-        std::alignment_of_v<T> == HandlerAlignment and
-        sizeof(T) <= MaxCommandObjectSize;
-
-    struct command_handler {
-        template<InPlacePolymorphicObject TCmd, typename ... TCmdArgs>
-        void create(TCmdArgs&&... args)
-        {
-            if (m_is_initialized)
-            {
-                throw std::runtime_error("double initialization of command");
-            }
-
-            new (m_buffer) TCmd(std::forward<TCmdArgs>(args)...);
-            m_is_initialized = true;
-        }
-
-        std::string execute(std::vector<resp::data_view> const& args)
-        {
-            if (not m_is_initialized)
-            {
-                throw std::runtime_error("execution of uninitialized command");
-            }
-
-            auto* cmd = reinterpret_cast<ICommandHandler*>(m_buffer);
-            return cmd->execute(args);
-        }
-
-        ~command_handler()
-        {
-            if (m_is_initialized)
-            {
-                auto* cmd = reinterpret_cast<ICommandHandler*>(m_buffer);
-                cmd->~ICommandHandler();
-            }
-        }
-
-    private:
-        uint8_t m_buffer[MaxCommandObjectSize]{};
-        bool m_is_initialized{false};
-    };
-
     struct ping_handler final : public ICommandHandler
     {
         [[nodiscard]] std::string execute(std::vector<resp::data_view> const &args) noexcept override;
@@ -105,7 +60,6 @@ namespace LambdaSnail::server
     struct echo_handler final : public ICommandHandler
     {
         [[nodiscard]] std::string execute(std::vector<resp::data_view> const &args) noexcept override;
-
         ~echo_handler() override = default;
     };
 
@@ -118,27 +72,21 @@ namespace LambdaSnail::server
         std::string m_message;
     };
 
-    template<typename TDatabase>
+    //template<typename TDatabase>
     struct get_handler final : public ICommandHandler
     {
-        explicit get_handler(std::shared_ptr<TDatabase> database) noexcept : m_database(database)
-        {
-        }
-
+        explicit get_handler(std::shared_ptr<class database> database) noexcept : m_database(std::move(database)) { }
         [[nodiscard]] std::string execute(std::vector<resp::data_view> const &args) noexcept override;
-
-        //get_handler(get_handler&& handler) noexcept : m_database(handler.m_database) {  }
-
         ~get_handler() override = default;
 
     private:
-        std::shared_ptr<TDatabase> m_database;
+        std::shared_ptr<database> m_database;
     };
 
-    template<typename TDatabase>
+    //template<typename TDatabase>
     struct set_handler final : public ICommandHandler
     {
-        explicit set_handler(std::shared_ptr<TDatabase> database) : m_database(database)
+        explicit set_handler(std::shared_ptr<database> database) : m_database(database)
         {
         }
 
@@ -147,7 +95,7 @@ namespace LambdaSnail::server
         ~set_handler() override = default;
 
     private:
-        std::shared_ptr<TDatabase> m_database;
+        std::shared_ptr<database> m_database;
     };
 
 
@@ -237,7 +185,7 @@ namespace LambdaSnail::server
 
         void set_database(server::database_handle_t index);
     private:
-        [[nodiscard]] command_handler get_command(std::string_view command_name) const;
+        [[nodiscard]] std::shared_ptr<ICommandHandler> get_command(std::string_view command_name) const;
 
         static std::unordered_map<std::string_view, std::function<ICommandHandler*()>> s_command_map;
         server& m_server;
