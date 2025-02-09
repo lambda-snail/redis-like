@@ -2,7 +2,7 @@
 
 This is my solution to the [Redis Server](https://codingchallenges.fyi/challenges/challenge-redis) coding challenge by John Crickett. 
 
-It is writen in C++23 using Clang and `libstdc++` on Ubuntu. Due to some issues with Asio, I have not yet been able to make it
+It is writen in C++23 using Clang and `libstdc++` on Ubuntu. Due to some issues when using Asio with modules on msvc, I have not yet been able to make it
 compile on Windows, unfortunately. This is also the first time I build something more than a test program that uses modules.
 
 ## State
