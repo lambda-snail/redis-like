@@ -168,7 +168,7 @@ std::string LambdaSnail::server::echo_handler::execute(std::vector<resp::data_vi
     }
 
     auto const str = args[1].materialize(resp::BulkString{});
-    return "$" + std::to_string(str.size()) + "\r\n" + std::string(str.data(), str.size()) + "\r\n";
+    return "$" + std::to_string(str.size()) + resp_end + std::string(str.data(), str.size()) + resp_end;
 }
 
 LambdaSnail::server::static_response_handler::static_response_handler(std::string_view message) noexcept : m_message(message) { }
@@ -193,7 +193,7 @@ std::string LambdaSnail::server::get_handler::execute(std::vector<LambdaSnail::r
         }
     }
 
-    return "_\r\n";
+    return resp_null;
 }
 
 std::string LambdaSnail::server::set_handler::execute(std::vector<resp::data_view> const &args) noexcept

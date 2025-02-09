@@ -84,7 +84,8 @@ namespace LambdaSnail::resp
 
     export inline namespace literals
     {
-        constexpr std::string resp_end = "\r\n";
+        constexpr std::string resp_end  = "\r\n";
+        constexpr std::string resp_null = "_\r\n";
 
         constexpr std::string operator""_resp_error(char const* str, size_t const len)
         {
