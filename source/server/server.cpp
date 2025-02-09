@@ -7,6 +7,14 @@ module server;
 
 namespace LambdaSnail::server
 {
+    server::server(size_t num_databases)
+    {
+        for (int i = 0; i < num_databases; ++i)
+        {
+            m_databases.emplace_back(std::make_shared<database>());
+        }
+    }
+
     server::database_handle_t server::create_database()
     {
         m_databases.emplace_back(std::make_shared<database>());

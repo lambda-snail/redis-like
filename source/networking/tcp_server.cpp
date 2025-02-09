@@ -31,6 +31,7 @@ namespace LambdaSnail::networking
     {
         uint16_t port{ 6379 };
         uint32_t cleanup_interval_seconds{ 1024 };
+        uint8_t num_databases{ 1 };
     };
 }
 
@@ -135,8 +136,7 @@ public:
         m_server_options(std::move(options)),
         m_maintenance_timer(m_context),
         m_maintenance_thread(maintenance_thread)
-    {
-    }
+    { }
 
     void run(LambdaSnail::memory::buffer_pool &buffer_pool)
     {
@@ -196,7 +196,7 @@ private:
     //asio::thread_pool m_context { m_thread_pool_size };
 
     LambdaSnail::server::server& m_server;
-    std::shared_ptr<LambdaSnail::logging::logger> m_logger;
+    std::shared_ptr<LambdaSnail::logging::logger> m_logger{};
     std::unique_ptr<LambdaSnail::networking::server_options> m_server_options;
 
     asio::steady_timer m_maintenance_timer;

@@ -163,6 +163,8 @@ namespace LambdaSnail::server
         typedef size_t database_size_t;
         typedef std::vector<std::shared_ptr<database>>::const_iterator database_iterator_t;
 
+        explicit server(size_t num_databases);
+
         database_handle_t create_database();
         [[nodiscard]] std::shared_ptr<database> get_database(database_handle_t database_no) const;
         [[nodiscard]] bool is_valid_handle(database_handle_t database_no) const;
