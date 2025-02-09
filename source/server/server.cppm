@@ -141,14 +141,11 @@ namespace LambdaSnail::server
          */
         std::unordered_map<std::string, expiry_info> m_delete_keys;
 
-        // TODO: May need different structure for this when we can support multiple databases
-        std::unordered_map<std::string_view, ICommandHandler* const> m_command_map;
-
         /**
-         * The key-value store is a concurrent queue, so is "safe" to access from multiple threads,
-         * but we may periodically wish to perform maintenance work on the database, such as expire
-         * key etc. In those cases the shared mutex allows us to lock the entire map for a short
-         * duration.
+         * The key-value store is read by connections concurrently but always from a single thread,
+         * so is "safe" to access without locking it first. However, may periodically wish to perform
+         * maintenance work on the database, such as clean up expired keys etc. In those cases the
+         * shared mutex allows us to lock the entire map for a short duration - just in case.
          */
         mutable std::shared_mutex m_mutex{};
     };

@@ -16,66 +16,25 @@ module;
 
 module server;
 
-namespace LambdaSnail::server
+bool LambdaSnail::server::entry_info::has_ttl() const
 {
-    bool entry_info::has_ttl() const
-    {
-        return ttl != std::chrono::time_point<std::chrono::system_clock>::min();
-    }
-
-    bool entry_info::has_expired(time_point_t now) const
-    {
-        return ttl <= now;
-    }
-
-    bool entry_info::is_deleted() const
-    {
-        return flags & static_cast<flags_t>(entry_flags::deleted);
-    }
-
-    void entry_info::set_deleted()
-    {
-        flags |= static_cast<flags_t>(entry_flags::deleted);
-    }
-
-    database::database()
-    {
-        // m_command_map = std::unordered_map<std::string_view, ICommandHandler* const>
-        // {
-        //     std::pair("PING", new ping_handler),
-        //     std::pair("ECHO", new echo_handler),
-        //     std::pair("GET", new get_handler<database>{ *this }),
-        //     std::pair("SET", new set_handler<database>{ *this }),
-        // };
-    }
+    return ttl != std::chrono::time_point<std::chrono::system_clock>::min();
 }
 
+bool LambdaSnail::server::entry_info::has_expired(time_point_t now) const
+{
+    return ttl <= now;
+}
 
-// std::string LambdaSnail::server::database::process_command(resp::data_view message)
-// {
-//     ZoneNamed(ProcessCommand, true);
-//
-//     auto const request = message.materialize(resp::Array{});
-//
-//     if (request.size() == 0 or request[0].type != LambdaSnail::resp::data_type::BulkString)
-//     {
-//         return {"-Unable to parse request\r\n"};
-//     }
-//
-//     auto const command_name = request[0].materialize(resp::BulkString{});
-//     auto const cmd_it = m_command_map.find(command_name);
-//     if (cmd_it != m_command_map.end())
-//     {
-//         auto *const command = cmd_it->second;
-//         if (command)
-//         {
-//             std::string s = command->execute(request);
-//             return s;
-//         }
-//     }
-//
-//     return {"-Unable to find command\r\n"};
-// }
+bool LambdaSnail::server::entry_info::is_deleted() const
+{
+    return flags & static_cast<flags_t>(entry_flags::deleted);
+}
+
+void LambdaSnail::server::entry_info::set_deleted()
+{
+    flags |= static_cast<flags_t>(entry_flags::deleted);
+}
 
 std::shared_ptr<LambdaSnail::server::entry_info> LambdaSnail::server::database::get_value(std::string const& key)
 {
