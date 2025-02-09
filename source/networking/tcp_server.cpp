@@ -30,7 +30,8 @@ namespace LambdaSnail::networking
     export struct server_options
     {
         uint16_t port{ 6379 };
-        uint32_t cleanup_interval_seconds{ 10 };
+        uint32_t cleanup_interval_seconds{ 1024 };
+        uint8_t num_databases{ 1 };
     };
 }
 
@@ -40,7 +41,7 @@ using tcp_socket_t = default_token_t::as_default_on_t<asio::ip::tcp::socket>;
 
 asio::awaitable<void> connection(
     tcp_socket_t socket,
-    std::shared_ptr<LambdaSnail::server::database> database,
+    std::shared_ptr<LambdaSnail::server::command_dispatch> dispatch,
     LambdaSnail::memory::buffer_pool& buffer_pool,
     std::shared_ptr<LambdaSnail::logging::logger> logger)
 {
@@ -74,8 +75,8 @@ asio::awaitable<void> connection(
                 break;
             }
 
-            LambdaSnail::resp::data_view resp_data(std::string_view(buffer_info.buffer, n));
-            std::string response = database->process_command(resp_data);
+            LambdaSnail::resp::data_view const resp_data(std::string_view(buffer_info.buffer, n));
+            std::string response = dispatch->process_command(resp_data);
 
             auto [ec_w, n_written] = co_await async_write(socket, asio::buffer(response, response.size()), asio::as_tuple(asio::use_awaitable));
             if (ec) [[unlikely]]
@@ -94,7 +95,7 @@ asio::awaitable<void> connection(
 
 asio::awaitable<void> listener(
     uint16_t port,
-    std::shared_ptr<LambdaSnail::server::database> database,
+    LambdaSnail::server::server& server,
     LambdaSnail::memory::buffer_pool& buffer_pool,
     std::shared_ptr<LambdaSnail::logging::logger> logger)
 {
@@ -116,7 +117,8 @@ asio::awaitable<void> listener(
             break;
         }
 
-        co_spawn(executor, connection(std::move(socket), database, buffer_pool, logger), asio::detached);
+        auto dispatch = std::make_shared<LambdaSnail::server::command_dispatch>(server);
+        co_spawn(executor, connection(std::move(socket), dispatch, buffer_pool, logger), asio::detached);
     }
 }
 
@@ -124,20 +126,19 @@ export class tcp_server
 {
 public:
     tcp_server(
+        LambdaSnail::server::server& server,
         LambdaSnail::server::timeout_worker& maintenance_thread,
         std::shared_ptr<LambdaSnail::logging::logger> logger,
         std::unique_ptr<LambdaSnail::networking::server_options> options)
     :
+        m_server(server),
         m_logger(logger),
         m_server_options(std::move(options)),
         m_maintenance_timer(m_context),
         m_maintenance_thread(maintenance_thread)
-    {
-    }
+    { }
 
-    void run(
-        std::shared_ptr<LambdaSnail::server::database> database,
-        LambdaSnail::memory::buffer_pool &buffer_pool)
+    void run(LambdaSnail::memory::buffer_pool &buffer_pool)
     {
         ZoneScoped;
 
@@ -164,7 +165,7 @@ public:
                     m_context.stop();
                 });
 
-            asio::co_spawn(m_context, listener(m_server_options->port, database, buffer_pool, m_logger), asio::detached);
+            asio::co_spawn(m_context, listener(m_server_options->port, m_server, buffer_pool, m_logger), asio::detached);
 
             m_logger->get_network_logger()->info("The maintenance thread will run every {} seconds", m_server_options->cleanup_interval_seconds);
             m_maintenance_timer.expires_after(asio::chrono::seconds(m_server_options->cleanup_interval_seconds));
@@ -194,7 +195,8 @@ private:
     asio::io_context m_context { 1 };
     //asio::thread_pool m_context { m_thread_pool_size };
 
-    std::shared_ptr<LambdaSnail::logging::logger> m_logger;
+    LambdaSnail::server::server& m_server;
+    std::shared_ptr<LambdaSnail::logging::logger> m_logger{};
     std::unique_ptr<LambdaSnail::networking::server_options> m_server_options;
 
     asio::steady_timer m_maintenance_timer;

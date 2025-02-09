@@ -1,11 +1,15 @@
 module;
 
 #include <atomic>
+#include <functional>
 #include <unordered_map>
 #include <thread>
 #include <future>
+#include <memory>
 #include <shared_mutex>
 #include <string>
+#include <type_traits>
+#include <utility>
 
 export module server;
 
@@ -15,14 +19,15 @@ import resp;
 
 namespace LambdaSnail::server
 {
-    using time_point_t = std::chrono::time_point<std::chrono::system_clock>;
+    export typedef std::chrono::time_point<std::chrono::system_clock> time_point_t;
 
     struct entry_info
     {
         enum class entry_flags
         {
-            no_state = 0,
-            deleted = 1 << 0
+            no_state    = 0,
+            deleted     = 1 << 0,
+            hase_ttl    = 1 << 1
         };
 
         typedef uint32_t version_t;
@@ -40,22 +45,68 @@ namespace LambdaSnail::server
 
     using store_t = std::unordered_map<std::string, std::shared_ptr<entry_info>>;
 
-    export struct ICommandHandler
+    struct ICommandHandler
     {
         [[nodiscard]] virtual std::string execute(std::vector<resp::data_view> const& args) noexcept = 0;
         virtual ~ICommandHandler() = default;
     };
 
+    struct ping_handler final : public ICommandHandler
+    {
+        [[nodiscard]] std::string execute(std::vector<resp::data_view> const &args) noexcept override;
+
+        ~ping_handler() override = default;
+    };
+
+    struct echo_handler final : public ICommandHandler
+    {
+        [[nodiscard]] std::string execute(std::vector<resp::data_view> const &args) noexcept override;
+        ~echo_handler() override = default;
+    };
+
+    struct static_response_handler final : public ICommandHandler
+    {
+        explicit static_response_handler(std::string_view) noexcept;
+        [[nodiscard]] std::string execute(std::vector<resp::data_view> const &args) noexcept override;
+        ~static_response_handler() override = default;
+    private:
+        std::string m_message;
+    };
+
+    struct get_handler final : public ICommandHandler
+    {
+        explicit get_handler(std::shared_ptr<class database> database) noexcept : m_database(std::move(database)) { }
+        [[nodiscard]] std::string execute(std::vector<resp::data_view> const &args) noexcept override;
+        ~get_handler() override = default;
+
+    private:
+        std::shared_ptr<database> m_database;
+    };
+
+    struct set_handler final : public ICommandHandler
+    {
+        explicit set_handler(std::shared_ptr<database> database) : m_database(database)
+        {
+        }
+
+        [[nodiscard]] std::string execute(std::vector<resp::data_view> const &args) noexcept override;
+
+        ~set_handler() override = default;
+
+    private:
+        std::shared_ptr<database> m_database;
+    };
+
     export class database
     {
     public:
-        explicit database(memory::buffer_allocator<char>& string_allocator);
-        [[nodiscard]] std::string process_command(resp::data_view message);
+        explicit database();
+        //[[nodiscard]] std::string process_command(resp::data_view message);
 
         // TODO: should probably return a variant or expected so we can return an error as well
         [[nodiscard]] std::shared_ptr<entry_info> get_value(std::string const& key);
 
-        void set_value(std::string const& key, std::string_view value, std::chrono::time_point<std::chrono::system_clock> ttl = {});
+        void set_value(std::string const& key, std::string_view value, time_point_t ttl = time_point_t::min());
 
         /**
          * Implements the active expiry by testing some random keys in the database among the
@@ -64,8 +115,6 @@ namespace LambdaSnail::server
         void handle_deletes(time_point_t now, size_t max_num_tests = 10);
 
     private:
-        memory::buffer_allocator<char>& m_string_allocator;
-
         store_t m_store{1000};
 
         enum class delete_reason : uint8_t
@@ -105,13 +154,52 @@ namespace LambdaSnail::server
     };
 
     /**
+     * A server is a collection of databases and the member functions used to manage these.
+     */
+    export class server
+    {
+    public:
+        typedef size_t database_handle_t;
+        typedef size_t database_size_t;
+        typedef std::vector<std::shared_ptr<database>>::const_iterator database_iterator_t;
+
+        explicit server(size_t num_databases);
+
+        database_handle_t create_database();
+        [[nodiscard]] std::shared_ptr<database> get_database(database_handle_t database_no) const;
+        [[nodiscard]] bool is_valid_handle(database_handle_t database_no) const;
+
+        [[nodiscard]] database_iterator_t begin() const;
+        [[nodiscard]] database_iterator_t end() const;
+
+    private:
+        std::vector<std::shared_ptr<database>> m_databases{};
+    };
+
+    export class command_dispatch
+    {
+    public:
+        explicit command_dispatch(server& server);
+        [[nodiscard]] std::string process_command(resp::data_view message);
+
+        std::string handle_set_database(server::database_handle_t handle);
+    private:
+        [[nodiscard]] std::shared_ptr<ICommandHandler> get_command(std::string_view command_name);
+
+        static std::unordered_map<std::string_view, std::function<ICommandHandler*()>> s_command_map;
+        server& m_server;
+
+        server::database_handle_t m_current_db{};
+    };
+
+    /**
      * The timeout worker is the mechanism for active expiry of keys. At periodic intervals
      * it will test some random keys in the databases and if they are expired, remove them.
      */
     export class timeout_worker
     {
     public:
-        explicit timeout_worker(std::shared_ptr<LambdaSnail::logging::logger> m_logger);
+        explicit timeout_worker(server& server, std::shared_ptr<LambdaSnail::logging::logger> m_logger);
 
         /**
          * Periodically cleans up pending deletes and tests a few random keys from each database
@@ -119,10 +207,18 @@ namespace LambdaSnail::server
          */
         void do_work() const;
         [[nodiscard]] std::future<void> do_work_async() const;
-
-        void add_database(std::shared_ptr<database> database);
     private:
-        std::shared_ptr<database> m_database; // TODO: Replace with reference to server that can fetch database list (copy to new thread)
+        LambdaSnail::server::server& m_server;
         std::shared_ptr<LambdaSnail::logging::logger> m_logger{};
+    };
+
+    struct select_handler final : public ICommandHandler
+    {
+        explicit select_handler(command_dispatch& dispatch) noexcept : m_dispatch(dispatch) { }
+        [[nodiscard]] std::string execute(std::vector<resp::data_view> const &args) noexcept override;
+        ~select_handler() override = default;
+
+    private:
+        command_dispatch& m_dispatch;
     };
 }

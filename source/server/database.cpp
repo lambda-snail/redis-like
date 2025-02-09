@@ -18,50 +18,6 @@ module server;
 
 namespace LambdaSnail::server
 {
-    struct ping_handler final : public ICommandHandler
-    {
-        [[nodiscard]] std::string execute(std::vector<resp::data_view> const &args) noexcept override;
-
-        ~ping_handler() override = default;
-    };
-
-    struct echo_handler final : public ICommandHandler
-    {
-        [[nodiscard]] std::string execute(std::vector<resp::data_view> const &args) noexcept override;
-
-        ~echo_handler() override = default;
-    };
-
-    template<typename TDatabase>
-    struct get_handler final : public ICommandHandler
-    {
-        explicit get_handler(TDatabase &database) : m_database(database)
-        {
-        }
-
-        [[nodiscard]] std::string execute(std::vector<resp::data_view> const &args) noexcept override;
-
-        ~get_handler() override = default;
-
-    private:
-        TDatabase &m_database;
-    };
-
-    template<typename TDatabase>
-    struct set_handler final : public ICommandHandler
-    {
-        explicit set_handler(TDatabase &database) : m_database(database)
-        {
-        }
-
-        [[nodiscard]] std::string execute(std::vector<resp::data_view> const &args) noexcept override;
-
-        ~set_handler() override = default;
-
-    private:
-        TDatabase &m_database;
-    };
-
     bool entry_info::has_ttl() const
     {
         return ttl != std::chrono::time_point<std::chrono::system_clock>::min();
@@ -82,44 +38,44 @@ namespace LambdaSnail::server
         flags |= static_cast<flags_t>(entry_flags::deleted);
     }
 
-    database::database(memory::buffer_allocator<char> &string_allocator) : m_string_allocator(string_allocator)
+    database::database()
     {
-        m_command_map = std::unordered_map<std::string_view, ICommandHandler* const>
-        {
-            std::pair("PING", new ping_handler),
-            std::pair("ECHO", new echo_handler),
-            std::pair("GET", new get_handler<database>{ *this }),
-            std::pair("SET", new set_handler<database>{ *this }),
-        };
+        // m_command_map = std::unordered_map<std::string_view, ICommandHandler* const>
+        // {
+        //     std::pair("PING", new ping_handler),
+        //     std::pair("ECHO", new echo_handler),
+        //     std::pair("GET", new get_handler<database>{ *this }),
+        //     std::pair("SET", new set_handler<database>{ *this }),
+        // };
     }
 }
 
 
-std::string LambdaSnail::server::database::process_command(resp::data_view message)
-{
-    ZoneNamed(ProcessCommand, true);
-
-    auto const request = message.materialize(resp::Array{});
-
-    if (request.size() == 0 or request[0].type != LambdaSnail::resp::data_type::BulkString)
-    {
-        return {"-Unable to parse request\r\n"};
-    }
-
-    auto const command_name = request[0].materialize(resp::BulkString{});
-    auto const cmd_it = m_command_map.find(command_name);
-    if (cmd_it != m_command_map.end())
-    {
-        auto *const command = cmd_it->second;
-        if (command)
-        {
-            std::string s = command->execute(request);
-            return s;
-        }
-    }
-
-    return {"-Unable to find command\r\n"};
-}
+// std::string LambdaSnail::server::database::process_command(resp::data_view message)
+// {
+//     ZoneNamed(ProcessCommand, true);
+//
+//     auto const request = message.materialize(resp::Array{});
+//
+//     if (request.size() == 0 or request[0].type != LambdaSnail::resp::data_type::BulkString)
+//     {
+//         return {"-Unable to parse request\r\n"};
+//     }
+//
+//     auto const command_name = request[0].materialize(resp::BulkString{});
+//     auto const cmd_it = m_command_map.find(command_name);
+//     if (cmd_it != m_command_map.end())
+//     {
+//         auto *const command = cmd_it->second;
+//         if (command)
+//         {
+//             std::string s = command->execute(request);
+//             return s;
+//         }
+//     }
+//
+//     return {"-Unable to find command\r\n"};
+// }
 
 std::shared_ptr<LambdaSnail::server::entry_info> LambdaSnail::server::database::get_value(std::string const& key)
 {
@@ -211,7 +167,7 @@ void LambdaSnail::server::database::handle_deletes(time_point_t now, size_t max_
     }
 
     // Now we test a few keys at random to see if they are expired
-    std::mt19937_64 random_engine( now.time_since_epoch().count() );
+    std::mt19937_64 random_engine( static_cast<uint64_t>(now.time_since_epoch().count()) );
     std::uniform_int_distribution<size_t> distribution(0, m_store.size());
 
     for (size_t i = 0; i < max_num_tests; ++i)
@@ -244,21 +200,32 @@ std::string LambdaSnail::server::echo_handler::execute(std::vector<resp::data_vi
 {
     ZoneScoped;
 
-    assert(args.size() == 2);
+    if (args.size() != 2)
+    {
+        // TODO: Need clean way to specify RESP string literals
+        return "-Malformed ECHO command\r\n";
+    }
+
     auto const str = args[1].materialize(resp::BulkString{});
     return "$" + std::to_string(str.size()) + "\r\n" + std::string(str.data(), str.size()) + "\r\n";
 }
 
-template<typename TDatabase>
-std::string LambdaSnail::server::get_handler<TDatabase>::execute(std::vector<resp::data_view> const &args) noexcept
+LambdaSnail::server::static_response_handler::static_response_handler(std::string_view message) noexcept : m_message(message) { }
+
+std::string LambdaSnail::server::static_response_handler::execute(std::vector<resp::data_view> const &args) noexcept
+{
+    return std::string(m_message);
+}
+
+std::string LambdaSnail::server::get_handler::execute(std::vector<LambdaSnail::resp::data_view> const &args) noexcept
 {
     ZoneScoped;
 
     if (args.size() == 2)
     {
-        auto const key = std::string(args[1].materialize(resp::BulkString{}));
+        auto const key = std::string(args[1].materialize(LambdaSnail::resp::BulkString{}));
 
-        auto value = m_database.get_value(std::move(key));
+        auto value = m_database->get_value(std::move(key));
         if (value)
         {
             return value->data + "\r\n";
@@ -268,8 +235,7 @@ std::string LambdaSnail::server::get_handler<TDatabase>::execute(std::vector<res
     return "_\r\n";
 }
 
-template<typename TDatabase>
-std::string LambdaSnail::server::set_handler<TDatabase>::execute(std::vector<resp::data_view> const &args) noexcept
+std::string LambdaSnail::server::set_handler::execute(std::vector<resp::data_view> const &args) noexcept
 {
     ZoneScoped;
 
@@ -277,7 +243,7 @@ std::string LambdaSnail::server::set_handler<TDatabase>::execute(std::vector<res
     {
         auto const key = std::string(args[1].materialize(resp::BulkString{}));
         auto value = args[2].value;
-        m_database.set_value(key, value);
+        m_database->set_value(key, value);
         return "+OK\r\n";
     }
 
@@ -300,10 +266,10 @@ std::string LambdaSnail::server::set_handler<TDatabase>::execute(std::vector<res
 
         if (option == "EX")
         {
-            m_database.set_value(key, value, std::chrono::system_clock::now() + std::chrono::seconds(ttl));
+            m_database->set_value(key, value, std::chrono::system_clock::now() + std::chrono::seconds(ttl));
         } else
         {
-            m_database.set_value(key, value, std::chrono::system_clock::now() + std::chrono::milliseconds(ttl));
+            m_database->set_value(key, value, std::chrono::system_clock::now() + std::chrono::milliseconds(ttl));
         }
 
         return "+OK\r\n";
@@ -311,4 +277,16 @@ std::string LambdaSnail::server::set_handler<TDatabase>::execute(std::vector<res
 
 
     return "-Unable to SET\r\n";
+}
+
+std::string LambdaSnail::server::select_handler::execute(std::vector<resp::data_view> const &args) noexcept
+{
+    ZoneScoped;
+
+    // TODO: Find nice way to encapsulate getting integers from bulk strings or parameters
+    auto const database = args[1].materialize(resp::BulkString{});
+
+    server::database_handle_t handle;
+    std::from_chars(database.data(), database.data() + database.length(), handle);
+    return m_dispatch.handle_set_database(handle);
 }

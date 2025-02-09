@@ -7,7 +7,9 @@ target_sources(server
 
 target_sources(server
         PUBLIC
+        command_dispatch.cpp
         database.cpp
+        server.cpp
         timeout_worker.cpp
 )
 
