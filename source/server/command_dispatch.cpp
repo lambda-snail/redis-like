@@ -25,7 +25,7 @@ namespace LambdaSnail::server
 
     }
 
-    std::shared_ptr<ICommandHandler> command_dispatch::get_command(std::string_view command_name) const
+    std::shared_ptr<ICommandHandler> command_dispatch::get_command(std::string_view command_name)
     {
         // TODO: Find a nicer way to handle this
         switch (command_name[0])
@@ -39,12 +39,22 @@ namespace LambdaSnail::server
             case 'G': // "GET"
                 return std::make_shared<get_handler>(m_server.get_database(m_current_db));
                 break;
-            case 'S': //"SET"
-                return std::make_shared<set_handler>(m_server.get_database(m_current_db));
+            case 'S': //"SET" or "SELECT
+                if (command_name.size() > 3 and command_name[2] == 'L') // SELECT
+                {
+                    return std::make_shared<select_handler>(*this);
+                }
+
+                if (command_name.size() == 3 and command_name[2] == 'T') // SET
+                {
+                    return std::make_shared<set_handler>(m_server.get_database(m_current_db));
+                }
                 break;
             default:
-                return std::make_shared<static_response_handler>("Unknown command: " + std::string(command_name));
+                break;
         }
+
+        return std::make_shared<static_response_handler>("Unknown command: " + std::string(command_name));
     }
 
     std::string command_dispatch::process_command(resp::data_view message)
@@ -66,8 +76,14 @@ namespace LambdaSnail::server
         return {"-Unable to find command\r\n"};
     }
 
-    void command_dispatch::set_database(server::database_handle_t index)
+    std::string command_dispatch::handle_set_database(server::database_handle_t handle)
     {
-        m_current_db = index;
+        if (m_server.is_valid_handle(handle))
+        {
+            m_current_db = handle;
+            return "+OK\r\n";
+        }
+
+        return "-Invalid database index\r\n";
     }
 };

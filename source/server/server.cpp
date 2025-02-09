@@ -19,6 +19,11 @@ namespace LambdaSnail::server
         return m_databases[database_no];
     }
 
+    bool server::is_valid_handle(database_handle_t database_no) const
+    {
+        return database_no < m_databases.size();
+    }
+
     // server::database_size_t server::get_database_size(database_handle_t database_no) const
     // {
     //     assert(database_no < m_databases.size());

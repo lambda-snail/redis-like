@@ -73,7 +73,6 @@ namespace LambdaSnail::server
         std::string m_message;
     };
 
-    //template<typename TDatabase>
     struct get_handler final : public ICommandHandler
     {
         explicit get_handler(std::shared_ptr<class database> database) noexcept : m_database(std::move(database)) { }
@@ -84,7 +83,6 @@ namespace LambdaSnail::server
         std::shared_ptr<database> m_database;
     };
 
-    //template<typename TDatabase>
     struct set_handler final : public ICommandHandler
     {
         explicit set_handler(std::shared_ptr<database> database) : m_database(database)
@@ -98,8 +96,6 @@ namespace LambdaSnail::server
     private:
         std::shared_ptr<database> m_database;
     };
-
-
 
     export class database
     {
@@ -169,7 +165,7 @@ namespace LambdaSnail::server
 
         database_handle_t create_database();
         [[nodiscard]] std::shared_ptr<database> get_database(database_handle_t database_no) const;
-        //[[nodiscard]] database_size_t get_database_size(database_handle_t database_no) const;
+        [[nodiscard]] bool is_valid_handle(database_handle_t database_no) const;
 
         [[nodiscard]] database_iterator_t begin() const;
         [[nodiscard]] database_iterator_t end() const;
@@ -184,9 +180,9 @@ namespace LambdaSnail::server
         explicit command_dispatch(server& server);
         [[nodiscard]] std::string process_command(resp::data_view message);
 
-        void set_database(server::database_handle_t index);
+        std::string handle_set_database(server::database_handle_t handle);
     private:
-        [[nodiscard]] std::shared_ptr<ICommandHandler> get_command(std::string_view command_name) const;
+        [[nodiscard]] std::shared_ptr<ICommandHandler> get_command(std::string_view command_name);
 
         static std::unordered_map<std::string_view, std::function<ICommandHandler*()>> s_command_map;
         server& m_server;
@@ -212,5 +208,15 @@ namespace LambdaSnail::server
     private:
         LambdaSnail::server::server& m_server;
         std::shared_ptr<LambdaSnail::logging::logger> m_logger{};
+    };
+
+    struct select_handler final : public ICommandHandler
+    {
+        explicit select_handler(command_dispatch& dispatch) noexcept : m_dispatch(dispatch) { }
+        [[nodiscard]] std::string execute(std::vector<resp::data_view> const &args) noexcept override;
+        ~select_handler() override = default;
+
+    private:
+        command_dispatch& m_dispatch;
     };
 }

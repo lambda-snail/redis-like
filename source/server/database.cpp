@@ -217,7 +217,6 @@ std::string LambdaSnail::server::static_response_handler::execute(std::vector<re
     return std::string(m_message);
 }
 
-// template<typename TDatabase>
 std::string LambdaSnail::server::get_handler::execute(std::vector<LambdaSnail::resp::data_view> const &args) noexcept
 {
     ZoneScoped;
@@ -278,4 +277,16 @@ std::string LambdaSnail::server::set_handler::execute(std::vector<resp::data_vie
 
 
     return "-Unable to SET\r\n";
+}
+
+std::string LambdaSnail::server::select_handler::execute(std::vector<resp::data_view> const &args) noexcept
+{
+    ZoneScoped;
+
+    // TODO: Find nice way to encapsulate getting integers from bulk strings or parameters
+    auto const database = args[1].materialize(resp::BulkString{});
+
+    server::database_handle_t handle;
+    std::from_chars(database.data(), database.data() + database.length(), handle);
+    return m_dispatch.handle_set_database(handle);
 }
