@@ -16,6 +16,8 @@ module;
 
 module server;
 
+using namespace LambdaSnail::resp::literals;
+
 bool LambdaSnail::server::entry_info::has_ttl() const
 {
     return ttl != std::chrono::time_point<std::chrono::system_clock>::min();
@@ -152,7 +154,7 @@ std::string LambdaSnail::server::ping_handler::execute(std::vector<resp::data_vi
     ZoneScoped;
 
     assert(args.size() == 1);
-    return "+PONG\r\n";
+    return "PONG"_resp_simple_string;
 }
 
 std::string LambdaSnail::server::echo_handler::execute(std::vector<resp::data_view> const &args) noexcept
@@ -162,7 +164,7 @@ std::string LambdaSnail::server::echo_handler::execute(std::vector<resp::data_vi
     if (args.size() != 2)
     {
         // TODO: Need clean way to specify RESP string literals
-        return "-Malformed ECHO command\r\n";
+        return "Malformed ECHO command"_resp_error;
     }
 
     auto const str = args[1].materialize(resp::BulkString{});
@@ -187,7 +189,7 @@ std::string LambdaSnail::server::get_handler::execute(std::vector<LambdaSnail::r
         auto value = m_database->get_value(std::move(key));
         if (value)
         {
-            return value->data + "\r\n";
+            return value->data + resp_end;
         }
     }
 
@@ -203,7 +205,7 @@ std::string LambdaSnail::server::set_handler::execute(std::vector<resp::data_vie
         auto const key = std::string(args[1].materialize(resp::BulkString{}));
         auto value = args[2].value;
         m_database->set_value(key, value);
-        return "+OK\r\n";
+        return resp_ok;
     }
 
     if (args.size() == 5)
@@ -220,7 +222,7 @@ std::string LambdaSnail::server::set_handler::execute(std::vector<resp::data_vie
         std::from_chars(ttl_str.data(), ttl_str.data() + ttl_str.length(), ttl);
         if (ttl == 0) [[unlikely]]
         {
-            return "-Invalid option to SET command, EX and PX require a non-negative integer\r\n";
+            return "Invalid option to SET command, EX and PX require a non-negative integer"_resp_error;
         }
 
         if (option == "EX")
@@ -231,12 +233,14 @@ std::string LambdaSnail::server::set_handler::execute(std::vector<resp::data_vie
             m_database->set_value(key, value, std::chrono::system_clock::now() + std::chrono::milliseconds(ttl));
         }
 
-        return "+OK\r\n";
+        return resp_ok;
     }
 
 
-    return "-Unable to SET\r\n";
+    return "Unable to SET"_resp_error;
 }
+
+
 
 std::string LambdaSnail::server::select_handler::execute(std::vector<resp::data_view> const &args) noexcept
 {

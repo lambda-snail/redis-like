@@ -19,6 +19,8 @@ import resp;
 
 namespace LambdaSnail::server
 {
+
+
     export typedef std::chrono::time_point<std::chrono::system_clock> time_point_t;
 
     struct entry_info
@@ -100,8 +102,7 @@ namespace LambdaSnail::server
     export class database
     {
     public:
-        explicit database();
-        //[[nodiscard]] std::string process_command(resp::data_view message);
+        explicit database() = default;
 
         // TODO: should probably return a variant or expected so we can return an error as well
         [[nodiscard]] std::shared_ptr<entry_info> get_value(std::string const& key);

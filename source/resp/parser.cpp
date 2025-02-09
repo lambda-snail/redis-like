@@ -81,6 +81,23 @@ namespace LambdaSnail::resp
         [[nodiscard]] profile_constexpr data_view validate_null(data_view data) const;
         [[nodiscard]] profile_constexpr data_view validate_simple_string(data_view data) const;
     };
+
+    export inline namespace literals
+    {
+        constexpr std::string resp_end = "\r\n";
+
+        constexpr std::string operator""_resp_error(char const* str, size_t const len)
+        {
+            return static_cast<char>(data_type::SimpleError) + std::string(str, len) + resp_end;
+        }
+
+        constexpr std::string operator""_resp_simple_string(char const* str, size_t const len)
+        {
+            return static_cast<char>(data_type::SimpleString) + std::string(str, len) + resp_end;
+        }
+
+        constexpr std::string resp_ok = "OK"_resp_simple_string;
+    }
 }
 
 
