@@ -11,7 +11,7 @@ namespace LambdaSnail::memory
     // (but then we need to prevent copying? Maybe better to use a shared_ptr with custom deallocator?)
     export struct buffer_info
     {
-        char *buffer{};
+        char* buffer{};
         size_t size{};
     };
 
@@ -27,7 +27,7 @@ namespace LambdaSnail::memory
 
         [[nodiscard]] buffer_info request_buffer(size_t size) noexcept;
 
-        void release_buffer(char *buffer) noexcept;
+        void release_buffer(char* buffer) noexcept;
 
     private:
         template<size_t buffer_size>
@@ -46,17 +46,17 @@ namespace LambdaSnail::memory
     struct buffer_allocator
     {
         using value_type   = T;
-        using pointer_type = T *;
+        using pointer_type = T*;
 
-        explicit buffer_allocator(buffer_pool &buffer_pool) noexcept;
+        explicit buffer_allocator(buffer_pool& buffer_pool) noexcept;
 
-        buffer_allocator(buffer_allocator<T> const &) noexcept = default;
+        buffer_allocator(buffer_allocator<T> const&) noexcept = default;
 
-        value_type *allocate(std::size_t n);
+        value_type* allocate(std::size_t n);
 
-        void deallocate(value_type *p, std::size_t n);
+        void deallocate(value_type* p, std::size_t n);
 
     private:
-        buffer_pool &m_buffer_pool;
+        buffer_pool& m_buffer_pool;
     };
 } // namespace LambdaSnail::memory

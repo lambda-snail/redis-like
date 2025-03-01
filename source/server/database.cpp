@@ -29,7 +29,7 @@ bool LambdaSnail::server::entry_info::is_deleted() const { return flags & static
 
 void LambdaSnail::server::entry_info::set_deleted() { flags |= static_cast<flags_t>(entry_flags::deleted); }
 
-std::shared_ptr<LambdaSnail::server::entry_info> LambdaSnail::server::database::get_value(std::string const &key)
+std::shared_ptr<LambdaSnail::server::entry_info> LambdaSnail::server::database::get_value(std::string const& key)
 {
     auto lock = std::shared_lock{m_mutex};
 
@@ -55,7 +55,7 @@ std::shared_ptr<LambdaSnail::server::entry_info> LambdaSnail::server::database::
     return it->second;
 }
 
-void LambdaSnail::server::database::set_value(std::string const &key, std::string_view value,
+void LambdaSnail::server::database::set_value(std::string const& key, std::string_view value,
                                               std::chrono::time_point<std::chrono::system_clock> ttl)
 {
     auto lock = std::shared_lock{m_mutex};
@@ -82,7 +82,7 @@ void LambdaSnail::server::database::handle_deletes(time_point_t now, size_t max_
     auto lock = std::unique_lock{m_mutex};
 
     // First check if we have deleted any keys or expired hem passively
-    for (auto &[key, expiry]: m_delete_keys)
+    for (auto& [key, expiry]: m_delete_keys)
     {
         auto entry_it = m_store.find(key);
         if (entry_it == m_store.end()) [[unlikely]]
@@ -135,7 +135,7 @@ void LambdaSnail::server::database::handle_deletes(time_point_t now, size_t max_
     }
 }
 
-std::string LambdaSnail::server::ping_handler::execute(std::vector<resp::data_view> const &args) noexcept
+std::string LambdaSnail::server::ping_handler::execute(std::vector<resp::data_view> const& args) noexcept
 {
     ZoneScoped;
 
@@ -143,7 +143,7 @@ std::string LambdaSnail::server::ping_handler::execute(std::vector<resp::data_vi
     return "PONG"_resp_simple_string;
 }
 
-std::string LambdaSnail::server::echo_handler::execute(std::vector<resp::data_view> const &args) noexcept
+std::string LambdaSnail::server::echo_handler::execute(std::vector<resp::data_view> const& args) noexcept
 {
     ZoneScoped;
 
@@ -162,12 +162,12 @@ LambdaSnail::server::static_response_handler::static_response_handler(std::strin
 {
 }
 
-std::string LambdaSnail::server::static_response_handler::execute(std::vector<resp::data_view> const &args) noexcept
+std::string LambdaSnail::server::static_response_handler::execute(std::vector<resp::data_view> const& args) noexcept
 {
     return std::string(m_message);
 }
 
-std::string LambdaSnail::server::get_handler::execute(std::vector<LambdaSnail::resp::data_view> const &args) noexcept
+std::string LambdaSnail::server::get_handler::execute(std::vector<LambdaSnail::resp::data_view> const& args) noexcept
 {
     ZoneScoped;
 
@@ -185,7 +185,7 @@ std::string LambdaSnail::server::get_handler::execute(std::vector<LambdaSnail::r
     return resp_null;
 }
 
-std::string LambdaSnail::server::set_handler::execute(std::vector<resp::data_view> const &args) noexcept
+std::string LambdaSnail::server::set_handler::execute(std::vector<resp::data_view> const& args) noexcept
 {
     ZoneScoped;
 
@@ -231,7 +231,7 @@ std::string LambdaSnail::server::set_handler::execute(std::vector<resp::data_vie
 }
 
 
-std::string LambdaSnail::server::select_handler::execute(std::vector<resp::data_view> const &args) noexcept
+std::string LambdaSnail::server::select_handler::execute(std::vector<resp::data_view> const& args) noexcept
 {
     ZoneScoped;
 

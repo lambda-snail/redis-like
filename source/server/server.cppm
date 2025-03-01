@@ -47,27 +47,27 @@ namespace LambdaSnail::server
 
     struct ICommandHandler
     {
-        [[nodiscard]] virtual std::string execute(std::vector<resp::data_view> const &args) noexcept = 0;
+        [[nodiscard]] virtual std::string execute(std::vector<resp::data_view> const& args) noexcept = 0;
         virtual ~ICommandHandler()                                                                   = default;
     };
 
     struct ping_handler final : public ICommandHandler
     {
-        [[nodiscard]] std::string execute(std::vector<resp::data_view> const &args) noexcept override;
+        [[nodiscard]] std::string execute(std::vector<resp::data_view> const& args) noexcept override;
 
         ~ping_handler() override = default;
     };
 
     struct echo_handler final : public ICommandHandler
     {
-        [[nodiscard]] std::string execute(std::vector<resp::data_view> const &args) noexcept override;
+        [[nodiscard]] std::string execute(std::vector<resp::data_view> const& args) noexcept override;
         ~echo_handler() override = default;
     };
 
     struct static_response_handler final : public ICommandHandler
     {
         explicit static_response_handler(std::string_view) noexcept;
-        [[nodiscard]] std::string execute(std::vector<resp::data_view> const &args) noexcept override;
+        [[nodiscard]] std::string execute(std::vector<resp::data_view> const& args) noexcept override;
         ~static_response_handler() override = default;
 
     private:
@@ -77,7 +77,7 @@ namespace LambdaSnail::server
     struct get_handler final : public ICommandHandler
     {
         explicit get_handler(std::shared_ptr<class database> database) noexcept : m_database(std::move(database)) {}
-        [[nodiscard]] std::string execute(std::vector<resp::data_view> const &args) noexcept override;
+        [[nodiscard]] std::string execute(std::vector<resp::data_view> const& args) noexcept override;
         ~get_handler() override = default;
 
     private:
@@ -88,7 +88,7 @@ namespace LambdaSnail::server
     {
         explicit set_handler(std::shared_ptr<database> database) : m_database(database) {}
 
-        [[nodiscard]] std::string execute(std::vector<resp::data_view> const &args) noexcept override;
+        [[nodiscard]] std::string execute(std::vector<resp::data_view> const& args) noexcept override;
 
         ~set_handler() override = default;
 
@@ -102,9 +102,9 @@ namespace LambdaSnail::server
         explicit database() = default;
 
         // TODO: should probably return a variant or expected so we can return an error as well
-        [[nodiscard]] std::shared_ptr<entry_info> get_value(std::string const &key);
+        [[nodiscard]] std::shared_ptr<entry_info> get_value(std::string const& key);
 
-        void set_value(std::string const &key, std::string_view value, time_point_t ttl = time_point_t::min());
+        void set_value(std::string const& key, std::string_view value, time_point_t ttl = time_point_t::min());
 
         /**
          * Implements the active expiry by testing some random keys in the database among the
@@ -174,7 +174,7 @@ namespace LambdaSnail::server
     export class command_dispatch
     {
     public:
-        explicit command_dispatch(server &server);
+        explicit command_dispatch(server& server);
         [[nodiscard]] std::string process_command(resp::data_view message);
 
         std::string handle_set_database(server::database_handle_t handle);
@@ -182,8 +182,8 @@ namespace LambdaSnail::server
     private:
         [[nodiscard]] std::shared_ptr<ICommandHandler> get_command(std::string_view command_name);
 
-        static std::unordered_map<std::string_view, std::function<ICommandHandler *()>> s_command_map;
-        server &m_server;
+        static std::unordered_map<std::string_view, std::function<ICommandHandler*()>> s_command_map;
+        server& m_server;
 
         server::database_handle_t m_current_db{};
     };
@@ -195,7 +195,7 @@ namespace LambdaSnail::server
     export class timeout_worker
     {
     public:
-        explicit timeout_worker(server &server, std::shared_ptr<LambdaSnail::logging::logger> m_logger);
+        explicit timeout_worker(server& server, std::shared_ptr<LambdaSnail::logging::logger> m_logger);
 
         /**
          * Periodically cleans up pending deletes and tests a few random keys from each database
@@ -205,17 +205,17 @@ namespace LambdaSnail::server
         [[nodiscard]] std::future<void> do_work_async() const;
 
     private:
-        LambdaSnail::server::server &m_server;
+        LambdaSnail::server::server& m_server;
         std::shared_ptr<LambdaSnail::logging::logger> m_logger{};
     };
 
     struct select_handler final : public ICommandHandler
     {
-        explicit select_handler(command_dispatch &dispatch) noexcept : m_dispatch(dispatch) {}
-        [[nodiscard]] std::string execute(std::vector<resp::data_view> const &args) noexcept override;
+        explicit select_handler(command_dispatch& dispatch) noexcept : m_dispatch(dispatch) {}
+        [[nodiscard]] std::string execute(std::vector<resp::data_view> const& args) noexcept override;
         ~select_handler() override = default;
 
     private:
-        command_dispatch &m_dispatch;
+        command_dispatch& m_dispatch;
     };
 } // namespace LambdaSnail::server

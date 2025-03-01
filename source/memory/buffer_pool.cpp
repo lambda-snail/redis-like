@@ -13,7 +13,7 @@ LambdaSnail::memory::buffer_pool::buffer_pool()
 {
     m_buffers.resize(1024);
     size_t index = 0;
-    for (auto &allocation: m_buffers)
+    for (auto& allocation: m_buffers)
     {
         allocation.index = index++;
     }
@@ -23,14 +23,14 @@ LambdaSnail::memory::buffer_info LambdaSnail::memory::buffer_pool::request_buffe
 {
     auto lock     = std::unique_lock{m_mutex};
     auto const it = std::ranges::find_if(m_buffers.begin(), m_buffers.end(),
-                                         [](auto const &alloc) { return not alloc.isAllocated; });
+                                         [](auto const& alloc) { return not alloc.isAllocated; });
     if (it == m_buffers.end())
     {
         return {.buffer = nullptr, .size = 0};
         ;
     }
 
-    auto &[buffer, isAllocated, index] = *it;
+    auto& [buffer, isAllocated, index] = *it;
 
     assert(not isAllocated);
     isAllocated = true;
@@ -39,10 +39,10 @@ LambdaSnail::memory::buffer_info LambdaSnail::memory::buffer_pool::request_buffe
     return {.buffer = buffer.data(), .size = buffer.size()};
 }
 
-void LambdaSnail::memory::buffer_pool::release_buffer(char *buffer) noexcept
+void LambdaSnail::memory::buffer_pool::release_buffer(char* buffer) noexcept
 {
     auto lock        = std::shared_lock{m_mutex};
-    auto *allocation = reinterpret_cast<allocation_information<1024> *>(buffer);
+    auto* allocation = reinterpret_cast<allocation_information<1024>*>(buffer);
 
     assert(allocation->index < 1024);
     assert(&m_buffers[allocation->index] == allocation);
