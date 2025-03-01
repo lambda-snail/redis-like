@@ -19,8 +19,6 @@ import resp;
 
 namespace LambdaSnail::server
 {
-
-
     export typedef std::chrono::time_point<std::chrono::system_clock> time_point_t;
 
     struct entry_info
