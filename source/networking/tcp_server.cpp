@@ -7,10 +7,8 @@ module;
 #include <asio/deferred.hpp>
 #include <asio/detached.hpp>
 #include <asio/ip/tcp.hpp>
-#include <asio/placeholders.hpp>
 #include <asio/signal_set.hpp>
 #include <asio/write.hpp>
-#include <cstdio>
 
 #include <exception>
 
@@ -47,7 +45,7 @@ asio::awaitable<void> connection(
 {
     logger->get_network_logger()->trace("Connection received on port: {}", socket.remote_endpoint().port());
 
-    auto buffer_info = buffer_pool.request_buffer(2048);
+    auto buffer_info = buffer_pool.request_buffer(socket.available());
     if (buffer_info.size == 0)
     {
         // TODO: Add own concrete exception here
@@ -59,18 +57,22 @@ asio::awaitable<void> connection(
     {
         while (true)
         {
+            if (buffer_info.size < socket.available())
+            {
+                buffer_info = buffer_pool.request_buffer(socket.available());
+            }
+
             auto [ec, n] = co_await socket.async_read_some(
                 asio::buffer(buffer_info.buffer, buffer_info.size),
                 asio::as_tuple(asio::use_awaitable));
-            if (ec == asio::error::eof) [[unlikely]]
-            {
-                // We separate the handling of eof since it's not an error per se
-                break;
-            }
 
             if (ec) [[unlikely]]
             {
-                // These are the errors we should log
+                if (ec == asio::error::eof)
+                {
+                    continue;
+                }
+
                 logger->get_network_logger()->error("Error while reading from socket: {}", ec.message());
                 break;
             }
@@ -87,7 +89,7 @@ asio::awaitable<void> connection(
     }
     catch (std::exception& e)
     {
-        std::printf("echo Exception: %s\n", e.what());
+        logger->get_network_logger()->error("Error while writing to socket: {}", e.what());
     }
 }
 
