@@ -17,8 +17,11 @@ LambdaSnail::memory::buffer_info& LambdaSnail::memory::buffer_info::operator=(bu
 
 LambdaSnail::memory::buffer_info::~buffer_info()
 {
-    assert(m_pool);
-    m_pool->release_buffer(*this);
+    // The user may have called release manually so we need to guard against this case
+    if (m_pool)
+    {
+        m_pool->release_buffer(*this);
+    }
 }
 
 LambdaSnail::memory::buffer_info::buffer_info(char* buffer_, size_t size_, buffer_pool* pool_, allocation_information* info_)
@@ -32,25 +35,24 @@ LambdaSnail::memory::buffer_info::buffer_info(buffer_info&& other) noexcept
 void LambdaSnail::memory::buffer_info::move_impl(buffer_info& to, buffer_info& from) noexcept
 {
     to.buffer = from.buffer;
-    from.buffer = nullptr;
-
     to.size = from.size;
-    from.size = 0;
-
     to.m_pool = from.m_pool;
-    from.m_pool = nullptr;
-
     to.m_allocation_info = from.m_allocation_info;
-    from.m_allocation_info = nullptr;
+
+    from.clear();
+}
+
+void LambdaSnail::memory::buffer_info::clear() noexcept
+{
+    buffer = nullptr;
+    size = 0;
+    m_allocation_info = nullptr;
+    m_pool = nullptr;
 }
 
 LambdaSnail::memory::buffer_pool::buffer_pool()
 {
-    // 16 indices
-    // indices 0-14 have fixed sizes
-    // last one (15) is catch-all for everything else, only allocated when needed
-
-    for (int i = 0; i < m_buckets.size() - 1; ++i)
+    for (int i = 0; i < m_buckets.size(); ++i)
     {
         m_buckets[i].buffer_size = m_lowest_size << i;
         m_buckets[i].num_buffers = m_num_buffers;
@@ -63,12 +65,9 @@ LambdaSnail::memory::buffer_pool::buffer_pool()
             allocation.buffer.resize(m_buckets[i].buffer_size);
         }
     }
-
-    m_buckets[m_buckets.size() - 1].buffer_size = 0;
-    m_buckets[m_buckets.size() - 1].num_buffers = 0;
 }
 
-size_t LambdaSnail::memory::buffer_pool::get_bucket(size_t n) const
+std::optional<size_t> LambdaSnail::memory::buffer_pool::get_bucket(size_t n) const
 {
     n /= m_lowest_size;
     for (size_t i = 0; i < m_buckets.size(); ++i)
@@ -79,23 +78,26 @@ size_t LambdaSnail::memory::buffer_pool::get_bucket(size_t n) const
         }
     }
 
-    return m_buckets.size() - 1;
+    return {};
 }
 
 LambdaSnail::memory::buffer_info LambdaSnail::memory::buffer_pool::request_buffer(size_t size) noexcept
 {
-    size_t bucket = get_bucket(size);
-    auto lock     = std::unique_lock{m_buckets[bucket].mutex};
+    auto maybe_bucket = get_bucket(size);
 
-    // TODO: First search through bucket to see if possible allocation exists
-    if (bucket == m_buckets.size() - 1)
+    if (not maybe_bucket.has_value())
     {
-        auto& info = m_buckets[bucket].buffers.emplace_back(std::vector<char>{}, size, true);
+        std::unique_lock lock{m_freelist_mutex};
+        auto& info = m_freelist.emplace_back(std::vector<char>{}, size, true);
         info.buffer.resize(size);
 
         return { info.buffer.data(), info.buffer.size(), this , &info };
     }
 
+    auto bucket = maybe_bucket.value();
+    std::unique_lock lock{m_buckets[bucket].mutex};
+
+    // TODO: If we cannot find available allocation, we need to keep checking larger buckets until we find one
     auto const it = std::ranges::find_if(m_buckets[bucket].buffers.begin(), m_buckets[bucket].buffers.end(),
                                          [](auto const& alloc) { return not alloc.isAllocated; });
 
@@ -110,13 +112,25 @@ LambdaSnail::memory::buffer_info LambdaSnail::memory::buffer_pool::request_buffe
     return { it->buffer.data(), it->buffer.size(), this, std::addressof(*it) };
 }
 
-void LambdaSnail::memory::buffer_pool::release_buffer(buffer_info const& buffer) noexcept
+void LambdaSnail::memory::buffer_pool::release_buffer(buffer_info& buffer) noexcept
 {
-    size_t bucket = get_bucket(buffer.size);
-    auto lock     = std::shared_lock{m_buckets[bucket].mutex};
-
     assert(buffer.m_pool == this);
     assert(buffer.m_allocation_info->isAllocated);
 
-    buffer.m_allocation_info->isAllocated = false;
+    auto maybe_bucket = get_bucket(buffer.size);
+
+    if (maybe_bucket.has_value())
+    {
+        size_t bucket = maybe_bucket.value();
+        std::shared_lock lock{m_buckets[bucket].mutex};
+        buffer.m_allocation_info->isAllocated = false;
+    }
+    else
+    {
+        std::shared_lock lock{m_freelist_mutex};
+        auto num_removed = m_freelist.remove_if([&buffer](allocation_information const& info) { return buffer.m_allocation_info == std::addressof(info); });
+        assert(num_removed == 1);
+    }
+
+    buffer.clear();
 }
