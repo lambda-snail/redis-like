@@ -47,7 +47,7 @@ asio::awaitable<void> connection(
 {
     logger->get_network_logger()->trace("Connection received on port: {}", socket.remote_endpoint().port());
 
-    auto buffer_info = buffer_pool.request_buffer(2048);
+    auto buffer_info = buffer_pool.request_buffer();
     if (buffer_info.size == 0)
     {
         // TODO: Add own concrete exception here

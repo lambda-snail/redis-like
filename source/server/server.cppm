@@ -2,13 +2,13 @@ module;
 
 #include <atomic>
 #include <functional>
-#include <unordered_map>
-#include <thread>
 #include <future>
 #include <memory>
 #include <shared_mutex>
 #include <string>
+#include <thread>
 #include <type_traits>
+#include <unordered_map>
 #include <utility>
 
 export module server;
@@ -19,17 +19,15 @@ import resp;
 
 namespace LambdaSnail::server
 {
-
-
     export typedef std::chrono::time_point<std::chrono::system_clock> time_point_t;
 
     struct entry_info
     {
         enum class entry_flags
         {
-            no_state    = 0,
-            deleted     = 1 << 0,
-            hase_ttl    = 1 << 1
+            no_state = 0,
+            deleted  = 1 << 0,
+            hase_ttl = 1 << 1
         };
 
         typedef uint32_t version_t;
@@ -38,7 +36,7 @@ namespace LambdaSnail::server
         std::string data;
         version_t version{};
         flags_t flags{};
-        time_point_t ttl{ time_point_t::min() };
+        time_point_t ttl{time_point_t::min()};
         [[nodiscard]] bool has_ttl() const;
         [[nodiscard]] bool has_expired(time_point_t now) const;
         [[nodiscard]] bool is_deleted() const;
@@ -50,35 +48,36 @@ namespace LambdaSnail::server
     struct ICommandHandler
     {
         [[nodiscard]] virtual std::string execute(std::vector<resp::data_view> const& args) noexcept = 0;
-        virtual ~ICommandHandler() = default;
+        virtual ~ICommandHandler()                                                                   = default;
     };
 
     struct ping_handler final : public ICommandHandler
     {
-        [[nodiscard]] std::string execute(std::vector<resp::data_view> const &args) noexcept override;
+        [[nodiscard]] std::string execute(std::vector<resp::data_view> const& args) noexcept override;
 
         ~ping_handler() override = default;
     };
 
     struct echo_handler final : public ICommandHandler
     {
-        [[nodiscard]] std::string execute(std::vector<resp::data_view> const &args) noexcept override;
+        [[nodiscard]] std::string execute(std::vector<resp::data_view> const& args) noexcept override;
         ~echo_handler() override = default;
     };
 
     struct static_response_handler final : public ICommandHandler
     {
         explicit static_response_handler(std::string_view) noexcept;
-        [[nodiscard]] std::string execute(std::vector<resp::data_view> const &args) noexcept override;
+        [[nodiscard]] std::string execute(std::vector<resp::data_view> const& args) noexcept override;
         ~static_response_handler() override = default;
+
     private:
         std::string m_message;
     };
 
     struct get_handler final : public ICommandHandler
     {
-        explicit get_handler(std::shared_ptr<class database> database) noexcept : m_database(std::move(database)) { }
-        [[nodiscard]] std::string execute(std::vector<resp::data_view> const &args) noexcept override;
+        explicit get_handler(std::shared_ptr<class database> database) noexcept : m_database(std::move(database)) {}
+        [[nodiscard]] std::string execute(std::vector<resp::data_view> const& args) noexcept override;
         ~get_handler() override = default;
 
     private:
@@ -87,11 +86,9 @@ namespace LambdaSnail::server
 
     struct set_handler final : public ICommandHandler
     {
-        explicit set_handler(std::shared_ptr<database> database) : m_database(database)
-        {
-        }
+        explicit set_handler(std::shared_ptr<database> database) : m_database(database) {}
 
-        [[nodiscard]] std::string execute(std::vector<resp::data_view> const &args) noexcept override;
+        [[nodiscard]] std::string execute(std::vector<resp::data_view> const& args) noexcept override;
 
         ~set_handler() override = default;
 
@@ -120,7 +117,7 @@ namespace LambdaSnail::server
 
         enum class delete_reason : uint8_t
         {
-            ttl_expiry = 0,
+            ttl_expiry   = 0,
             user_deleted = 2 << 0
         };
 
@@ -181,6 +178,7 @@ namespace LambdaSnail::server
         [[nodiscard]] std::string process_command(resp::data_view message);
 
         std::string handle_set_database(server::database_handle_t handle);
+
     private:
         [[nodiscard]] std::shared_ptr<ICommandHandler> get_command(std::string_view command_name);
 
@@ -205,6 +203,7 @@ namespace LambdaSnail::server
          */
         void do_work() const;
         [[nodiscard]] std::future<void> do_work_async() const;
+
     private:
         LambdaSnail::server::server& m_server;
         std::shared_ptr<LambdaSnail::logging::logger> m_logger{};
@@ -212,11 +211,11 @@ namespace LambdaSnail::server
 
     struct select_handler final : public ICommandHandler
     {
-        explicit select_handler(command_dispatch& dispatch) noexcept : m_dispatch(dispatch) { }
-        [[nodiscard]] std::string execute(std::vector<resp::data_view> const &args) noexcept override;
+        explicit select_handler(command_dispatch& dispatch) noexcept : m_dispatch(dispatch) {}
+        [[nodiscard]] std::string execute(std::vector<resp::data_view> const& args) noexcept override;
         ~select_handler() override = default;
 
     private:
         command_dispatch& m_dispatch;
     };
-}
+} // namespace LambdaSnail::server

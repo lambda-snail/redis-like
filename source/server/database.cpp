@@ -23,24 +23,15 @@ bool LambdaSnail::server::entry_info::has_ttl() const
     return ttl != std::chrono::time_point<std::chrono::system_clock>::min();
 }
 
-bool LambdaSnail::server::entry_info::has_expired(time_point_t now) const
-{
-    return ttl <= now;
-}
+bool LambdaSnail::server::entry_info::has_expired(time_point_t now) const { return ttl <= now; }
 
-bool LambdaSnail::server::entry_info::is_deleted() const
-{
-    return flags & static_cast<flags_t>(entry_flags::deleted);
-}
+bool LambdaSnail::server::entry_info::is_deleted() const { return flags & static_cast<flags_t>(entry_flags::deleted); }
 
-void LambdaSnail::server::entry_info::set_deleted()
-{
-    flags |= static_cast<flags_t>(entry_flags::deleted);
-}
+void LambdaSnail::server::entry_info::set_deleted() { flags |= static_cast<flags_t>(entry_flags::deleted); }
 
 std::shared_ptr<LambdaSnail::server::entry_info> LambdaSnail::server::database::get_value(std::string const& key)
 {
-    auto lock = std::shared_lock{ m_mutex };
+    auto lock = std::shared_lock{m_mutex};
 
     auto const it = m_store.find(key);
     if (it == m_store.end() or it->second->is_deleted())
@@ -54,11 +45,8 @@ std::shared_ptr<LambdaSnail::server::entry_info> LambdaSnail::server::database::
         if (it->second->ttl < now)
         {
             // Will be cleaned up in the background by the maintenance thread
-            m_delete_keys[key] = expiry_info
-            {
-                .version = it->second->version,
-                .delete_reason = delete_reason::ttl_expiry
-            };
+            m_delete_keys[key] =
+                    expiry_info{.version = it->second->version, .delete_reason = delete_reason::ttl_expiry};
 
             return nullptr;
         }
@@ -73,12 +61,11 @@ void LambdaSnail::server::database::set_value(std::string const& key, std::strin
     auto lock = std::shared_lock{m_mutex};
 
     auto const it = m_store.find(key);
-    std::shared_ptr<entry_info> const value_wrapper = (it == m_store.end())
-                                                          ? std::make_shared<entry_info>()
-                                                          : it->second;
+    std::shared_ptr<entry_info> const value_wrapper =
+            (it == m_store.end()) ? std::make_shared<entry_info>() : it->second;
 
-    value_wrapper->data = std::string(value);
-    value_wrapper->ttl = ttl;
+    value_wrapper->data  = std::string(value);
+    value_wrapper->ttl   = ttl;
     value_wrapper->flags = {};
 
     // Incrementing the version allows us to ignore the queue of entries to
@@ -92,10 +79,10 @@ void LambdaSnail::server::database::set_value(std::string const& key, std::strin
 void LambdaSnail::server::database::handle_deletes(time_point_t now, size_t max_num_tests)
 {
     // For simplicity, we lock the entire database while performing maintenance
-    auto lock = std::unique_lock{ m_mutex };
+    auto lock = std::unique_lock{m_mutex};
 
     // First check if we have deleted any keys or expired hem passively
-    for (auto& [key, expiry] : m_delete_keys)
+    for (auto& [key, expiry]: m_delete_keys)
     {
         auto entry_it = m_store.find(key);
         if (entry_it == m_store.end()) [[unlikely]]
@@ -106,15 +93,14 @@ void LambdaSnail::server::database::handle_deletes(time_point_t now, size_t max_
         // Even if the version differs, the entry may have expired, so we check for that
         // case as well, even if the delete reason is not due to an expired key.
         // As an extra check we also abort the operation if the delete flag is not set.
-        if ((entry_it->second->version != expiry.version
-            or not entry_it->second->has_expired(now))
-            or not entry_it->second->is_deleted())
+        if ((entry_it->second->version != expiry.version or not entry_it->second->has_expired(now)) or
+            not entry_it->second->is_deleted())
         {
             continue;
         }
 
         // If we get here, we are confident the key can be deleted
-        //m_store.unsafe_erase(entry_it);
+        // m_store.unsafe_erase(entry_it);
         m_store.erase(entry_it);
     }
 
@@ -128,13 +114,13 @@ void LambdaSnail::server::database::handle_deletes(time_point_t now, size_t max_
     }
 
     // Now we test a few keys at random to see if they are expired
-    std::mt19937_64 random_engine( static_cast<uint64_t>(now.time_since_epoch().count()) );
+    std::mt19937_64 random_engine(static_cast<uint64_t>(now.time_since_epoch().count()));
     std::uniform_int_distribution<size_t> distribution(0, m_store.size());
 
     for (size_t i = 0; i < max_num_tests; ++i)
     {
-        auto store_it = m_store.begin();
-        auto const incr = distribution(random_engine); //random_engine();
+        auto store_it   = m_store.begin();
+        auto const incr = distribution(random_engine); // random_engine();
         std::advance(store_it, static_cast<std::iter_difference_t<store_t::iterator>>(incr));
 
         if (store_it == m_store.end())
@@ -149,7 +135,7 @@ void LambdaSnail::server::database::handle_deletes(time_point_t now, size_t max_
     }
 }
 
-std::string LambdaSnail::server::ping_handler::execute(std::vector<resp::data_view> const &args) noexcept
+std::string LambdaSnail::server::ping_handler::execute(std::vector<resp::data_view> const& args) noexcept
 {
     ZoneScoped;
 
@@ -157,7 +143,7 @@ std::string LambdaSnail::server::ping_handler::execute(std::vector<resp::data_vi
     return "PONG"_resp_simple_string;
 }
 
-std::string LambdaSnail::server::echo_handler::execute(std::vector<resp::data_view> const &args) noexcept
+std::string LambdaSnail::server::echo_handler::execute(std::vector<resp::data_view> const& args) noexcept
 {
     ZoneScoped;
 
@@ -171,14 +157,17 @@ std::string LambdaSnail::server::echo_handler::execute(std::vector<resp::data_vi
     return "$" + std::to_string(str.size()) + resp_end + std::string(str.data(), str.size()) + resp_end;
 }
 
-LambdaSnail::server::static_response_handler::static_response_handler(std::string_view message) noexcept : m_message(message) { }
+LambdaSnail::server::static_response_handler::static_response_handler(std::string_view message) noexcept :
+    m_message(message)
+{
+}
 
-std::string LambdaSnail::server::static_response_handler::execute(std::vector<resp::data_view> const &args) noexcept
+std::string LambdaSnail::server::static_response_handler::execute(std::vector<resp::data_view> const& args) noexcept
 {
     return std::string(m_message);
 }
 
-std::string LambdaSnail::server::get_handler::execute(std::vector<LambdaSnail::resp::data_view> const &args) noexcept
+std::string LambdaSnail::server::get_handler::execute(std::vector<LambdaSnail::resp::data_view> const& args) noexcept
 {
     ZoneScoped;
 
@@ -196,14 +185,14 @@ std::string LambdaSnail::server::get_handler::execute(std::vector<LambdaSnail::r
     return resp_null;
 }
 
-std::string LambdaSnail::server::set_handler::execute(std::vector<resp::data_view> const &args) noexcept
+std::string LambdaSnail::server::set_handler::execute(std::vector<resp::data_view> const& args) noexcept
 {
     ZoneScoped;
 
     if (args.size() == 3)
     {
         auto const key = std::string(args[1].materialize(resp::BulkString{}));
-        auto value = args[2].value;
+        auto value     = args[2].value;
         m_database->set_value(key, value);
         return resp_ok;
     }
@@ -211,13 +200,14 @@ std::string LambdaSnail::server::set_handler::execute(std::vector<resp::data_vie
     if (args.size() == 5)
     {
         auto const key = std::string(args[1].materialize(resp::BulkString{}));
-        auto value = args[2].value;
-        auto option = args[3].materialize(resp::BulkString{}); // Assume EX or PX for now, also assume bulk string (can this be a simple string?)
+        auto value     = args[2].value;
+        auto option    = args[3].materialize(
+                resp::BulkString{}); // Assume EX or PX for now, also assume bulk string (can this be a simple string?)
 
         // Redis CLI sends a bulk string - need to refactor parsing part to handle various cases
         auto ttl_str = args[4].materialize(resp::BulkString{});
 
-        //auto conversion = std::to_integer(ttl_str);
+        // auto conversion = std::to_integer(ttl_str);
         int64_t ttl{};
         std::from_chars(ttl_str.data(), ttl_str.data() + ttl_str.length(), ttl);
         if (ttl == 0) [[unlikely]]
@@ -241,8 +231,7 @@ std::string LambdaSnail::server::set_handler::execute(std::vector<resp::data_vie
 }
 
 
-
-std::string LambdaSnail::server::select_handler::execute(std::vector<resp::data_view> const &args) noexcept
+std::string LambdaSnail::server::select_handler::execute(std::vector<resp::data_view> const& args) noexcept
 {
     ZoneScoped;
 

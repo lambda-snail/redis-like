@@ -12,9 +12,9 @@ FetchContent_Declare(asio
 )
 
 FetchContent_GetProperties(asio)
-if(NOT asio_POPULATED)
+if (NOT asio_POPULATED)
     FetchContent_MakeAvailable(asio)
-endif()
+endif ()
 
 add_library(asio INTERFACE)
 target_include_directories(asio INTERFACE ${asio_SOURCE_DIR}/asio/include)

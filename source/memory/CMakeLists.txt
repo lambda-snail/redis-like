@@ -3,6 +3,10 @@ target_sources(memory
         PUBLIC
         FILE_SET CXX_MODULES FILES
         memory.cppm
+)
+
+target_sources(memory
+        PUBLIC
         buffer_allocator.cpp
         buffer_pool.cpp
 )
