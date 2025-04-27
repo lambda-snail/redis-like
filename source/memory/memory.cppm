@@ -70,7 +70,7 @@ namespace LambdaSnail::memory
         };
 
         size_t m_lowest_size = 128;
-        size_t m_num_buffers = 64;
+        size_t m_num_buffers = 32;
 
         /**
          * Buckets with buffers holding commonly expected buffer sizes.

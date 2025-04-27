@@ -55,13 +55,6 @@ asio::awaitable<void> connection(
 
     try
     {
-        // TODO: Two problems:
-        // - One iteration of this loop is not necessarily equal to one request - a request may have data that requires
-        // several iterations, otherwise the next read will start in the middle of a string. We need the parser to report
-        // how many bytes are expected
-        //
-        // - When the buffer pool bucket is full, the pool could look in higher buckets to try to fulfill the request
-
         while (true)
         {
             if (buffer_info.size < socket.available())
@@ -75,11 +68,12 @@ asio::awaitable<void> connection(
 
             if (ec) [[unlikely]]
             {
-                if (ec != asio::error::eof)
+                if (ec == asio::error::eof)
                 {
-                    logger->get_network_logger()->error("Error while reading from socket: {}", ec.message());
+                    continue;
                 }
 
+                logger->get_network_logger()->error("Error while reading from socket: {}", ec.message());
                 break;
             }
 
