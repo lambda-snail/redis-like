@@ -7,7 +7,6 @@ target_sources(memory
 
 target_sources(memory
         PUBLIC
-        buffer_allocator.cpp
         buffer_pool.cpp
 )
 

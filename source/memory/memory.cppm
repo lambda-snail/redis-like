@@ -7,12 +7,19 @@ export module memory;
 
 namespace LambdaSnail::memory
 {
-    // TODO: RAII enable: make it call release?
-    // (but then we need to prevent copying? Maybe better to use a shared_ptr with custom deallocator?)
-    export struct buffer_info
+    export struct buffer_info final
     {
+        buffer_info(char* buf, size_t len, class buffer_pool& pool) : buffer(buf), size(len), m_buffer_pool(pool) {}
+
         char* buffer{};
         size_t size{};
+
+        buffer_info(const buffer_info& info) = delete;
+        buffer_info& operator =(buffer_info const&) = delete;
+
+        ~buffer_info();
+    private:
+        buffer_pool& m_buffer_pool;
     };
 
     /**
@@ -40,23 +47,5 @@ namespace LambdaSnail::memory
 
         std::vector<allocation_information<1024>> m_buffers{};
         std::shared_mutex m_mutex{};
-    };
-
-    export template<typename T>
-    struct buffer_allocator
-    {
-        using value_type   = T;
-        using pointer_type = T*;
-
-        explicit buffer_allocator(buffer_pool& buffer_pool) noexcept;
-
-        buffer_allocator(buffer_allocator<T> const&) noexcept = default;
-
-        value_type* allocate(std::size_t n);
-
-        void deallocate(value_type* p, std::size_t n);
-
-    private:
-        buffer_pool& m_buffer_pool;
     };
 } // namespace LambdaSnail::memory

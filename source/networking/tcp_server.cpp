@@ -27,6 +27,9 @@ import resp;
 
 namespace LambdaSnail::networking
 {
+    /**
+     * Server options that can be specified on the command line.
+     */
     export struct server_options
     {
         uint16_t port{ 6379 };
@@ -39,6 +42,12 @@ using default_token_t = asio::deferred_t;
 using tcp_acceptor_t = default_token_t::as_default_on_t<asio::ip::tcp::acceptor>;
 using tcp_socket_t = default_token_t::as_default_on_t<asio::ip::tcp::socket>;
 
+/**
+ * The connection coroutine is the glue that connects the client connection with the database.
+ * Since this is not a real production server, requests are assumed to be 1 kiB for simplicity.
+ * The buffer pool could be extended to serve buffers of various sizes to handle a more dynamic
+ * (and maybe more realistic) workload.
+ */
 asio::awaitable<void> connection(
     tcp_socket_t socket,
     std::shared_ptr<LambdaSnail::server::command_dispatch> dispatch,
@@ -89,8 +98,6 @@ asio::awaitable<void> connection(
     {
         std::printf("echo Exception: %s\n", e.what());
     }
-
-    buffer_pool.release_buffer(buffer_info.buffer);
 }
 
 asio::awaitable<void> listener(
