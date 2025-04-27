@@ -89,6 +89,8 @@ asio::awaitable<void> connection(
     {
         std::printf("echo Exception: %s\n", e.what());
     }
+
+    buffer_pool.release_buffer(buffer_info);
 }
 
 asio::awaitable<void> listener(
