@@ -22,7 +22,7 @@ SET: 49726.51 requests per second, p50=0.503 msec
 GET: 46533.27 requests per second, p50=0.535 msec
 ```
 
-Which is very similar to the 'real' redis server installed via `apt-get`:
+Which is very similar to the 'real' redis server installed via `apt-get` on my computer:
 
 ```shell
 SET: 50377.83 requests per second, p50=0.495 msec                   
@@ -31,10 +31,18 @@ GET: 47460.84 requests per second, p50=0.519 msec
 
 ## TODO
 
-- Add support for more commands (finish the challenge)
-- Heavily refactor the RESP parser
-- Remove the ugly string copying and hard-coded RESP responses that occur in several places
-- Add support for varying request sizes in the buffer pool
+Things that could (should) be improved if this was a real production application:
+
+- Heavily refactor the RESP parser - currently it attempts to rely on the buffer allocated by the connection handler to avoid 
+  any allocations for as long as possible. Just before storing data in the database, it is "materialized" and storage for the
+  entry is allocated. This works, but led to code duplication that should be refactored.
+
+- Add support for varying request sizes in the buffer pool - for the challenge requests are assumed to be 1 kiB or less. In a
+  real redis application requests can of course be much larger than that. The connection would need to check if there is still
+  data in the buffer after reading a request, and if so allocate a larger buffer. Another approach would be to parse the RESP
+  commands using a parser that can work incrementally.
+
+- Currently, all data is stored as string in the database - not sure if this is a good idea or not. 
 
 ## Disclaimer
 
@@ -45,7 +53,7 @@ needs to change, please contact me and I will make the change.
 
 The code has been verified to work with clang-19 on Ubuntu (24.04). On Windows there are compilation errors that are similar
 to [this](https://developercommunity.visualstudio.com/t/C20-modules--boost::asio-still-being-/10038468) report. The ticket is
-still "under consideration" after almost three years, so it's anyone's guess when it an be resolved. If you know a workaround
+still "under consideration" after almost three years, so it's anyone's guess when it can be resolved. If you know a workaround
 to this on Windows, PRs are always welcome :)
 
 # Running
