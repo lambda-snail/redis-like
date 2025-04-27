@@ -15,7 +15,7 @@ template<typename T>
 typename LambdaSnail::memory::buffer_allocator<T>::value_type*
 LambdaSnail::memory::buffer_allocator<T>::allocate(std::size_t n)
 {
-    auto const& [buffer, size] = m_buffer_pool.request_buffer(n);
+    auto const& [buffer, size] = m_buffer_pool.request_buffer();
     std::cout << "Allocated buffer " << buffer << " (" << size << ") bytes" << std::endl;
 
     return buffer;

@@ -19,7 +19,7 @@ LambdaSnail::memory::buffer_pool::buffer_pool()
     }
 }
 
-LambdaSnail::memory::buffer_info LambdaSnail::memory::buffer_pool::request_buffer(size_t size) noexcept
+LambdaSnail::memory::buffer_info LambdaSnail::memory::buffer_pool::request_buffer() noexcept
 {
     auto lock     = std::unique_lock{m_mutex};
     auto const it = std::ranges::find_if(m_buffers.begin(), m_buffers.end(),

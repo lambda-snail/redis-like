@@ -25,7 +25,7 @@ namespace LambdaSnail::memory
     public:
         explicit buffer_pool();
 
-        [[nodiscard]] buffer_info request_buffer(size_t size) noexcept;
+        [[nodiscard]] buffer_info request_buffer() noexcept;
 
         void release_buffer(char* buffer) noexcept;
 
