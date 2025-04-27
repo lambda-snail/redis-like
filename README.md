@@ -47,6 +47,13 @@ Things that could (should) be improved if this was a real production application
 - Add more tests! Unit tests and integration tests. Integration tests an be constructed using `redis-cli`. Stress tests could be
   constructed using `redis-benchmark`. All we need to make that work in a CI/CD pipeline is bash :)
 
+## Learning Outcomes
+
+- Working with modules
+- Technical tradeoffs (e.g., use multi- or single threading)
+- Tradeoffs in project management (what to work on and what not to work on given the limited time of a side project)
+- Combat scope creep
+
 ## Disclaimer
 
 Naming is hard. Despite the name of this project, I am not in any way affiliated with Redis. If you are affiliated with Redis and you think the name of this project
