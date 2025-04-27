@@ -36,7 +36,7 @@ int main(int argc, char const** argv)
     ZoneScoped;
 
     CLI::App app{"A key-value store with a partial implementation of the RESP protocol."};
-    //auto utf8_args = app.ensure_utf8(argv); // Only on Windows
+    //auto utf8_args = app.ensure_utf8(argv); // Needed on Windows
     auto options = add_arguments(app, argc, argv);
     CLI11_PARSE(app, argc, argv);
 
@@ -46,7 +46,6 @@ int main(int argc, char const** argv)
     logger->get_system_logger()->info("The server is starting, the version is {}", LAMBDA_SNAIL_VERSION);
 
     LambdaSnail::memory::buffer_pool buffer_pool{};
-    //LambdaSnail::memory::buffer_allocator<char> allocator{buffer_pool};
 
     LambdaSnail::server::server server(options->num_databases);
 
