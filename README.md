@@ -44,6 +44,9 @@ Things that could (should) be improved if this was a real production application
 
 - Currently, all data is stored as string in the database - not sure if this is a good idea or not. 
 
+- Add more tests! Unit tests and integration tests. Integration tests an be constructed using `redis-cli`. Stress tests could be
+  constructed using `redis-benchmark`. All we need to make that work in a CI/CD pipeline is bash :)
+
 ## Disclaimer
 
 Naming is hard. Despite the name of this project, I am not in any way affiliated with Redis. If you are affiliated with Redis and you think the name of this project
