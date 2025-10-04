@@ -1,93 +1,116 @@
-import resp;
+#include <variant>
 
 #include <gtest/gtest.h>
 
-namespace ParseValidTests
-{
-    template<typename T>
-    struct RespStringTestFixture : public testing::Test {};//WithParam<char const*>
-    // {
-    //     using Type = RespType;
-    // };
+import resp;
 
-    struct TestInt
-    {
-        char const* data = ":1234\r\n";
-        int64_t expected = 1234;
-        LambdaSnail::resp::Integer type;
-    };
+// namespace ParseValidTests
+// {
+//     template<typename T>
+//     struct RespStringTestFixture : public testing::Test {};//WithParam<char const*>
+//     // {
+//     //     using Type = RespType;
+//     // };
+//
+//     struct TestInt
+//     {
+//         char const* data = ":1234\r\n";
+//         int64_t expected = 1234;
+//         LambdaSnail::resp::Integer type;
+//     };
+//
+//     struct TestNegativeInt
+//     {
+//         char const* data = ":-1234\r\n";
+//         int64_t expected = -1234;
+//         LambdaSnail::resp::Integer type;
+//     };
+//
+//     struct TestDouble
+//     {
+//         char const* data = ",1.234\r\n";
+//         double expected = 1.234;
+//         LambdaSnail::resp::Double type;
+//     };
+//
+//     struct TestNegativeDouble
+//     {
+//         char const* data = ",-1.234\r\n";
+//         double expected = -1.234;
+//         LambdaSnail::resp::Double type;
+//     };
+//
+//     struct TestBool
+//     {
+//         char const* data = "#T\r\n";
+//         bool expected = true;
+//         LambdaSnail::resp::Boolean type;
+//     };
+//
+//     struct TestSimpleString
+//     {
+//         char const* data = "+INCR\r\n";
+//         std::string expected = "INCR";
+//         LambdaSnail::resp::SimpleString type;
+//     };
+//
+//     struct TestBulkString
+//     {
+//         char const* data = "$4\r\nINCR\r\n";
+//         std::string expected = "INCR";
+//         LambdaSnail::resp::BulkString type;
+//     };
+//
+//     struct TestBulkStringWithLineEndings
+//     {
+//         char const* data = "$20\r\nINCR\r\nThe other line\r\n";
+//         std::string expected = "INCR\r\nThe other line";
+//         LambdaSnail::resp::BulkString type;
+//     };
+//
+//     TYPED_TEST_SUITE_P(RespStringTestFixture);
+//
+//     TYPED_TEST_P(RespStringTestFixture, TestMaterializeValidResp)
+//     {
+//         TypeParam test_data;
+//         LambdaSnail::resp::data_view view(test_data.data);
+//         auto value = view.materialize(test_data.type);
+//         ASSERT_TRUE(value == test_data.expected);
+//     }
+//
+//     REGISTER_TYPED_TEST_SUITE_P(RespStringTestFixture, TestMaterializeValidResp);
+//
+//     using ValidRespStringTest_Types = ::testing::Types<
+//         TestInt, TestNegativeInt,
+//         TestDouble, TestNegativeDouble,
+//         TestBool,
+//         TestSimpleString, TestBulkString, TestBulkStringWithLineEndings
+//     >;
+//
+//     INSTANTIATE_TYPED_TEST_SUITE_P(TestMaterializeValidResp,RespStringTestFixture,ValidRespStringTest_Types);
+// }
 
-    struct TestNegativeInt
-    {
-        char const* data = ":-1234\r\n";
-        int64_t expected = -1234;
-        LambdaSnail::resp::Integer type;
-    };
+TEST(parserTests, TestEmptyArray) {
+    LambdaSnail::resp::v2::parser p;
 
-    struct TestDouble
-    {
-        char const* data = ",1.234\r\n";
-        double expected = 1.234;
-        LambdaSnail::resp::Double type;
-    };
+    std::vector<LambdaSnail::resp::v2::data> data_{};
+    auto read = p.add_buffer({}, data_);
 
-    struct TestNegativeDouble
-    {
-        char const* data = ",-1.234\r\n";
-        double expected = -1.234;
-        LambdaSnail::resp::Double type;
-    };
-
-    struct TestBool
-    {
-        char const* data = "#T\r\n";
-        bool expected = true;
-        LambdaSnail::resp::Boolean type;
-    };
-
-    struct TestSimpleString
-    {
-        char const* data = "+INCR\r\n";
-        std::string expected = "INCR";
-        LambdaSnail::resp::SimpleString type;
-    };
-
-    struct TestBulkString
-    {
-        char const* data = "$4\r\nINCR\r\n";
-        std::string expected = "INCR";
-        LambdaSnail::resp::BulkString type;
-    };
-
-    struct TestBulkStringWithLineEndings
-    {
-        char const* data = "$20\r\nINCR\r\nThe other line\r\n";
-        std::string expected = "INCR\r\nThe other line";
-        LambdaSnail::resp::BulkString type;
-    };
-
-    TYPED_TEST_SUITE_P(RespStringTestFixture);
-
-    TYPED_TEST_P(RespStringTestFixture, TestMaterializeValidResp)
-    {
-        TypeParam test_data;
-        LambdaSnail::resp::data_view view(test_data.data);
-        auto value = view.materialize(test_data.type);
-        ASSERT_TRUE(value == test_data.expected);
-    }
-
-    REGISTER_TYPED_TEST_SUITE_P(RespStringTestFixture, TestMaterializeValidResp);
-
-    using ValidRespStringTest_Types = ::testing::Types<
-        TestInt, TestNegativeInt,
-        TestDouble, TestNegativeDouble,
-        TestBool,
-        TestSimpleString, TestBulkString, TestBulkStringWithLineEndings
-    >;
-
-    INSTANTIATE_TYPED_TEST_SUITE_P(TestMaterializeValidResp,RespStringTestFixture,ValidRespStringTest_Types);
+    EXPECT_EQ(read, 0);
+    EXPECT_EQ(data_.size(), 0);
 }
 
+TEST(parserTests, TestArrayWithInteger) {
+    LambdaSnail::resp::v2::parser p;
+
+    std::vector<LambdaSnail::resp::v2::data> data_{};
+    auto read = p.add_buffer(":1234\r\n", data_);
+
+    EXPECT_EQ(read, 7);
+    EXPECT_EQ(data_.size(), 1);
+    EXPECT_EQ(p.is_done(), true);
+    EXPECT_EQ(std::get<int64_t>(data_[0]), 1234);
+}
 
 
 // TYPED_TEST_SUITE_P(
