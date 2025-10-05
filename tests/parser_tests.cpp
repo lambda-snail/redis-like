@@ -208,8 +208,8 @@ TEST(parserTests, TestMixedValues_StringAndInt_OnePass) {
     LambdaSnail::resp::v2::parser p;
 
     std::vector<LambdaSnail::resp::v2::data> data_{};
-    auto read = p.add_buffer("+Hello World\r\n:1234\r\n", data_);
-    EXPECT_EQ(read, 21);
+    auto read = p.add_buffer("*2\r\n+Hello World\r\n:1234\r\n", data_);
+    EXPECT_EQ(read, 25);
     EXPECT_TRUE(p.is_done());
 
     EXPECT_EQ(data_.size(), 2);

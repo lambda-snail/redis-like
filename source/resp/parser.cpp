@@ -4,6 +4,7 @@ module;
 #include <cassert>
 #include <cmath>
 #include <expected>
+#include <stack>
 #include <stdexcept>
 #include <string>
 #include <variant>
@@ -132,23 +133,28 @@ namespace LambdaSnail::resp::v2
 {
     export typedef std::variant<int64_t, std::string> data;
 
-    export class stateful_parser
+    class stateful_parser
     {
     public:
+        explicit stateful_parser(char const prefix) : prefix_(prefix) {}
+
         //[[nodiscard]] virtual data get_value() const = 0;
-        [[nodiscard]] virtual bool is_done() const = 0;
+        [[nodiscard]] virtual bool is_done() const { return is_fully_parsed; }
         [[nodiscard]] virtual size_t parse(std::string_view value, std::vector<data>& data_) = 0;
 
         virtual ~stateful_parser() = default;
+
+    protected:
+        char const prefix_;
+        bool is_fully_parsed { false };
     };
 
-    export class int_parser final : public stateful_parser
+    class int_parser : public stateful_parser
     {
     public:
-        explicit int_parser() : stateful_parser() {}
+        explicit int_parser(char const prefix = static_cast<char>(data_type::Integer)) : stateful_parser(prefix) {}
 
         //[[nodiscard]] data get_value() const override { assert(is_fully_parsed); return data{ state }; }
-        [[nodiscard]] bool is_done() const override { return is_fully_parsed; }
         [[nodiscard]] size_t parse(std::string_view value, std::vector<data>& data_) override;
 
         // int_parser(int_parser&& parser) noexcept = delete;
@@ -157,31 +163,38 @@ namespace LambdaSnail::resp::v2
         // int_parser& operator=(int_parser const&&) = delete;
     private:
         int64_t state {}; // Intermediate or fully parsed value
-        bool is_fully_parsed { false };
         bool is_negative { false };
     };
 
     class simple_string_parser final : public stateful_parser
     {
     public:
-        explicit simple_string_parser() : stateful_parser() {}
+        explicit simple_string_parser() : stateful_parser(static_cast<char>(data_type::SimpleString)) {}
 
-        [[nodiscard]] bool is_done() const override { return is_fully_parsed; }
         [[nodiscard]] size_t parse(std::string_view value, std::vector<data>& data_) override;
 
     private:
         std::string state {};
-        bool is_fully_parsed { false };
     };
 
-
+    /**
+     * Online parser that can be called incrementally to parse a message in chunks.
+     *
+     * To simplify things for this exercise, it has been assumed that all messages are encased in
+     * an array. This assumption is reasonable since RESP commands are sent as arrays (see
+     * https://redis.io/docs/latest/develop/reference/protocol-spec/#arrays) so the use case for the
+     * parser is actually to parse RESP arrays.
+     *
+     * However, this is not valid in general for RESP, as arrays can contain nested arrays arbitrarily.
+     */
     export class parser
     {
     public:
-        void add_parser(std::string_view::const_iterator start);
         [[nodiscard]] profile_constexpr size_t add_buffer(std::string_view buffer, std::vector<data>& data_);
 
         [[nodiscard]] inline bool is_done() const { return is_done_; };
+
+        void set_num_elements(size_t num) { num_elements = num; };
 
     private:
         struct parse_result
@@ -190,9 +203,23 @@ namespace LambdaSnail::resp::v2
             size_t num_read{0};
         };
 
-        bool is_done_{false};
+        size_t num_elements { 1 };
+        bool is_done_ { false };
 
-        std::shared_ptr<stateful_parser> current_parser {};
+        std::stack<std::shared_ptr<stateful_parser>> parsers {};
+        //std::shared_ptr<stateful_parser> current_parser {};
+        void add_parser(std::string_view::const_iterator start);
+    };
+
+    class array_parser final : public int_parser
+    {
+    public:
+        explicit array_parser(parser& parser) : int_parser(static_cast<char>(data_type::Array)), parser_(parser) {}
+
+        [[nodiscard]] size_t parse(std::string_view value, std::vector<data>& data_) override;
+
+    private:
+        parser& parser_;
     };
 
 } // namespace LambdaSnail::resp::v2
@@ -207,21 +234,27 @@ profile_constexpr size_t LambdaSnail::resp::v2::parser::add_buffer(std::string_v
     auto it = buffer.begin();
     while (it != buffer.end())
     {
-        if (not current_parser)
+        if (parsers.empty())
         {
             add_parser(it);
         }
 
-        assert(current_parser);
+        assert(not parsers.empty());
 
-        auto const num = current_parser->parse(std::string_view(it, buffer.end()), data_);
-        is_done_       = current_parser->is_done();
-        if (is_done_)
+        auto const& current_parser  = parsers.top();
+        auto const num              = current_parser->parse(std::string_view(it, buffer.end()), data_);
+        auto const all_parsed       = current_parser->is_done();
+        if (all_parsed)
         {
-            current_parser.reset();
+            parsers.pop();
         }
 
         std::advance(it, num);
+    }
+
+    if (data_.size() == num_elements)
+    {
+        is_done_ = true;
     }
 
     return it - buffer.begin();
@@ -232,12 +265,15 @@ void LambdaSnail::resp::v2::parser::add_parser(std::string_view::const_iterator 
     switch (static_cast<data_type>(*start))
     {
         case data_type::Integer:
-            current_parser = std::make_shared<int_parser>();
+            parsers.emplace(std::move(std::make_shared<int_parser>()));
+//            current_parser = std::make_shared<int_parser>();
             break;
         case data_type::SimpleString:
-            current_parser = std::make_shared<simple_string_parser>();
+            parsers.emplace(std::move(std::make_shared<simple_string_parser>()));
             break;
-            // case data_type::Array:
+        case data_type::Array:
+            parsers.emplace(std::move(std::make_shared<array_parser>(*this)));
+            break;
             // case data_type::BulkString:
             // case data_type::Boolean:
             // case data_type::Double:
@@ -248,7 +284,6 @@ void LambdaSnail::resp::v2::parser::add_parser(std::string_view::const_iterator 
     }
 }
 
-
 size_t LambdaSnail::resp::v2::int_parser::parse(std::string_view value, std::vector<data>& data_)
 {
     ZoneScoped;
@@ -256,7 +291,7 @@ size_t LambdaSnail::resp::v2::int_parser::parse(std::string_view value, std::vec
     assert(not value.empty());
 
     auto it_start = value.begin();
-    if (*it_start == static_cast<char>(data_type::Integer))
+    if (*it_start == prefix_)
     {
         ++it_start;
 
@@ -291,7 +326,7 @@ size_t LambdaSnail::resp::v2::int_parser::parse(std::string_view value, std::vec
         data_.emplace_back(is_negative ? -state : state);
     }
 
-    return is_fully_parsed ? value.size() : i - value.begin();
+    return is_fully_parsed ? i - value.begin() + 2: i - value.begin(); // +2 for \r and \n
 }
 
 size_t LambdaSnail::resp::v2::simple_string_parser::parse(std::string_view value, std::vector<data>& data_)
@@ -301,7 +336,7 @@ size_t LambdaSnail::resp::v2::simple_string_parser::parse(std::string_view value
     assert(not value.empty());
 
     auto start = value.begin();
-    if (*start == static_cast<char>(data_type::SimpleString))
+    if (*start == prefix_)
     {
         ++start;
     }
@@ -327,36 +362,28 @@ size_t LambdaSnail::resp::v2::simple_string_parser::parse(std::string_view value
     }
 
     return is_fully_parsed ? it - value.begin() + 2 : it - value.begin(); // +2 to account for the \r and \n at the end
-
-
-    // size_t start  = 0;
-    // size_t length = value.length();
-    // if (*value.begin() == static_cast<char>(data_type::SimpleString))
-    // {
-    //     --length;
-    //     ++start;
-    // }
-    //
-    // if (value.size() > 1 and *(value.end() - 1) == '\n')
-    // {
-    //     length -= 2;
-    // }
-    //
-    // return value.substr(start, length);
 }
 
+size_t LambdaSnail::resp::v2::array_parser::parse(std::string_view value, std::vector<data>& data_)
+{
+    ZoneScoped;
 
+    std::vector<data> d{};
+    auto const num = int_parser::parse(value, d);
 
+    if (is_done())
+    {
+        assert(not d.empty());
 
+        int64_t const array_size = std::get<int64_t>(d[0]);
+        assert(array_size > 0);
 
+        data_.reserve(static_cast<size_t>(array_size));
+        parser_.set_num_elements(array_size);
+    }
 
-
-
-
-
-
-
-
+    return num;
+}
 
 
 
