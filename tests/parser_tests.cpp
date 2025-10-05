@@ -1,95 +1,97 @@
+#include <ranges>
 #include <variant>
 
 #include <gtest/gtest.h>
 
 import resp;
+
+// namespace ParseValidTests
+// {
+//     template<typename T>
+//     struct RespStringTestFixture : public testing::Test {};//WithParam<char const*>
+//     // {
+//     //     using Type = RespType;
+//     // };
 //
-// // namespace ParseValidTests
-// // {
-// //     template<typename T>
-// //     struct RespStringTestFixture : public testing::Test {};//WithParam<char const*>
-// //     // {
-// //     //     using Type = RespType;
-// //     // };
-// //
-// //     struct TestInt
-// //     {
-// //         char const* data = ":1234\r\n";
-// //         int64_t expected = 1234;
-// //         LambdaSnail::resp::Integer type;
-// //     };
-// //
-// //     struct TestNegativeInt
-// //     {
-// //         char const* data = ":-1234\r\n";
-// //         int64_t expected = -1234;
-// //         LambdaSnail::resp::Integer type;
-// //     };
-// //
-// //     struct TestDouble
-// //     {
-// //         char const* data = ",1.234\r\n";
-// //         double expected = 1.234;
-// //         LambdaSnail::resp::Double type;
-// //     };
-// //
-// //     struct TestNegativeDouble
-// //     {
-// //         char const* data = ",-1.234\r\n";
-// //         double expected = -1.234;
-// //         LambdaSnail::resp::Double type;
-// //     };
-// //
-// //     struct TestBool
-// //     {
-// //         char const* data = "#T\r\n";
-// //         bool expected = true;
-// //         LambdaSnail::resp::Boolean type;
-// //     };
-// //
-// //     struct TestSimpleString
-// //     {
-// //         char const* data = "+INCR\r\n";
-// //         std::string expected = "INCR";
-// //         LambdaSnail::resp::SimpleString type;
-// //     };
-// //
-// //     struct TestBulkString
-// //     {
-// //         char const* data = "$4\r\nINCR\r\n";
-// //         std::string expected = "INCR";
-// //         LambdaSnail::resp::BulkString type;
-// //     };
-// //
-// //     struct TestBulkStringWithLineEndings
-// //     {
-// //         char const* data = "$20\r\nINCR\r\nThe other line\r\n";
-// //         std::string expected = "INCR\r\nThe other line";
-// //         LambdaSnail::resp::BulkString type;
-// //     };
-// //
-// //     TYPED_TEST_SUITE_P(RespStringTestFixture);
-// //
-// //     TYPED_TEST_P(RespStringTestFixture, TestMaterializeValidResp)
-// //     {
-// //         TypeParam test_data;
-// //         LambdaSnail::resp::data_view view(test_data.data);
-// //         auto value = view.materialize(test_data.type);
-// //         ASSERT_TRUE(value == test_data.expected);
-// //     }
-// //
-// //     REGISTER_TYPED_TEST_SUITE_P(RespStringTestFixture, TestMaterializeValidResp);
-// //
-// //     using ValidRespStringTest_Types = ::testing::Types<
-// //         TestInt, TestNegativeInt,
-// //         TestDouble, TestNegativeDouble,
-// //         TestBool,
-// //         TestSimpleString, TestBulkString, TestBulkStringWithLineEndings
-// //     >;
-// //
-// //     INSTANTIATE_TYPED_TEST_SUITE_P(TestMaterializeValidResp,RespStringTestFixture,ValidRespStringTest_Types);
-// // }
+//     struct TestInt
+//     {
+//         char const* data = ":1234\r\n";
+//         int64_t expected = 1234;
+//         LambdaSnail::resp::Integer type;
+//     };
 //
+//     struct TestNegativeInt
+//     {
+//         char const* data = ":-1234\r\n";
+//         int64_t expected = -1234;
+//         LambdaSnail::resp::Integer type;
+//     };
+//
+//     struct TestDouble
+//     {
+//         char const* data = ",1.234\r\n";
+//         double expected = 1.234;
+//         LambdaSnail::resp::Double type;
+//     };
+//
+//     struct TestNegativeDouble
+//     {
+//         char const* data = ",-1.234\r\n";
+//         double expected = -1.234;
+//         LambdaSnail::resp::Double type;
+//     };
+//
+//     struct TestBool
+//     {
+//         char const* data = "#T\r\n";
+//         bool expected = true;
+//         LambdaSnail::resp::Boolean type;
+//     };
+//
+//     struct TestSimpleString
+//     {
+//         char const* data = "+INCR\r\n";
+//         std::string expected = "INCR";
+//         LambdaSnail::resp::SimpleString type;
+//     };
+//
+//     struct TestBulkString
+//     {
+//         char const* data = "$4\r\nINCR\r\n";
+//         std::string expected = "INCR";
+//         LambdaSnail::resp::BulkString type;
+//     };
+//
+//     struct TestBulkStringWithLineEndings
+//     {
+//         char const* data = "$20\r\nINCR\r\nThe other line\r\n";
+//         std::string expected = "INCR\r\nThe other line";
+//         LambdaSnail::resp::BulkString type;
+//     };
+//
+//     TYPED_TEST_SUITE_P(RespStringTestFixture);
+//
+//     TYPED_TEST_P(RespStringTestFixture, TestMaterializeValidResp)
+//     {
+//         TypeParam test_data;
+//         LambdaSnail::resp::data_view view(test_data.data);
+//         auto value = view.materialize(test_data.type);
+//         ASSERT_TRUE(value == test_data.expected);
+//     }
+//
+//     REGISTER_TYPED_TEST_SUITE_P(RespStringTestFixture, TestMaterializeValidResp);
+//
+//     using ValidRespStringTest_Types = ::testing::Types<
+//         TestInt, TestNegativeInt,
+//         TestDouble, TestNegativeDouble,
+//         TestBool,
+//         TestSimpleString, TestBulkString, TestBulkStringWithLineEndings
+//     >;
+//
+//     INSTANTIATE_TYPED_TEST_SUITE_P(TestMaterializeValidResp,RespStringTestFixture,ValidRespStringTest_Types);
+// }
+
+
 TEST(parserTests, TestEmptyArray) {
     LambdaSnail::resp::v2::parser p;
 
@@ -216,6 +218,88 @@ TEST(parserTests, TestMixedValues_StringAndInt_OnePass) {
     EXPECT_EQ(std::get<std::string>(data_[0]), "Hello World");
     EXPECT_EQ(std::get<int64_t>(data_[1]), 1234);
 }
+
+namespace ArrayTests
+{
+    template<typename T>
+    struct RespArrayFixture : public testing::Test
+    {
+        LambdaSnail::resp::v2::parser parser{};
+        std::vector<LambdaSnail::resp::v2::data> data{};
+    };
+
+    struct TwoValues
+    {
+        std::vector<std::string> data { "*2\r\n:-456\r\n:1234\r\n" };
+        std::vector<LambdaSnail::resp::v2::data> expected { -456, 1234 };
+    };
+
+    struct TwoValues_Split1
+    {
+        std::vector<std::string> data { "*2\r\n", ":-45", "6\r\n", ":1234\r\n" };
+        std::vector<LambdaSnail::resp::v2::data> expected { -456, 1234 };
+    };
+
+    struct TwoValues_SplitNewline
+    {
+        std::vector<std::string> data { "*2\r\n", ":-456\r", "\n:1234\r\n" };
+        std::vector<LambdaSnail::resp::v2::data> expected { -456, 1234 };
+    };
+
+    struct ThreeValues
+    {
+        std::vector<std::string> data { "*3\r\n:114466\r\n+Hello World!\r\n:-99\r\n" };
+        std::vector<LambdaSnail::resp::v2::data> expected { 114466, "Hello World!", -99 };
+    };
+
+    TYPED_TEST_SUITE_P(RespArrayFixture);
+
+    TYPED_TEST_P(RespArrayFixture, TestArrayParsing)
+    {
+        TypeParam const test_data{};
+
+        for (std::string const& str : test_data.data)
+        {
+            this->parser.add_buffer( str, this->data );
+        }
+
+        ASSERT_EQ(test_data.expected.size(), this->data.size());
+
+        for (auto const i : std::ranges::iota_view{0u, this->data.size()})
+        {
+            ASSERT_EQ(test_data.expected[i], this->data[i]);
+        }
+    }
+
+    REGISTER_TYPED_TEST_SUITE_P(RespArrayFixture, TestArrayParsing);
+
+    using ValidArrayTest = ::testing::Types<
+        TwoValues,
+        TwoValues_Split1,
+        TwoValues_SplitNewline,
+        ThreeValues
+    >;
+
+    INSTANTIATE_TYPED_TEST_SUITE_P(TestMaterializeValidResp,RespArrayFixture,ValidArrayTest);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 //
 //

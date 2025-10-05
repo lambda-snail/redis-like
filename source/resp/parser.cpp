@@ -306,8 +306,8 @@ size_t LambdaSnail::resp::v2::int_parser::parse(std::string_view value, std::vec
         }
     }
 
-    auto i = it_start;
-    for (; i < value.end(); ++i)
+    auto it = it_start;
+    for (; it < value.end(); ++it)
     {
         // TODO: Check for errors
         // if (*i < '0' or *i > '9')
@@ -315,13 +315,19 @@ size_t LambdaSnail::resp::v2::int_parser::parse(std::string_view value, std::vec
         //     return error
         // }
 
-        if (*i == '\r')
+        if (*it == '\r')
         {
+            continue;
+        }
+
+        if (*it == '\n')
+        {
+            ++it; // Compensate for premature loop exit
             is_fully_parsed = true;
             break;
         }
 
-        state = (state * 10) + (*i - '0');
+        state = (state * 10) + (*it - '0');
     }
 
     if (is_fully_parsed)
@@ -329,7 +335,7 @@ size_t LambdaSnail::resp::v2::int_parser::parse(std::string_view value, std::vec
         data_.emplace_back(is_negative ? -state : state);
     }
 
-    return is_fully_parsed ? i - value.begin() + 2: i - value.begin(); // +2 for \r and \n
+    return it - value.begin();
 }
 
 size_t LambdaSnail::resp::v2::simple_string_parser::parse(std::string_view value, std::vector<data>& data_)
