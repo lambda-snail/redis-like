@@ -130,7 +130,7 @@ namespace LambdaSnail::resp
 
 namespace LambdaSnail::resp::v2
 {
-    export typedef std::variant<int64_t> data;
+    export typedef std::variant<int64_t, std::string> data;
 
     export class stateful_parser
     {
@@ -149,20 +149,30 @@ namespace LambdaSnail::resp::v2
 
         //[[nodiscard]] data get_value() const override { assert(is_fully_parsed); return data{ state }; }
         [[nodiscard]] bool is_done() const override { return is_fully_parsed; }
-
         [[nodiscard]] size_t parse(std::string_view value, std::vector<data>& data_) override;
 
-        int_parser(int_parser&& parser) noexcept = delete;
-        int_parser(const int_parser& parser) = delete;
-        int_parser& operator=(int_parser const&) const = delete;
-        int_parser& operator=(int_parser const&&) = delete;
+        // int_parser(int_parser&& parser) noexcept = delete;
+        // int_parser(const int_parser& parser) = delete;
+        // int_parser& operator=(int_parser const&) const = delete;
+        // int_parser& operator=(int_parser const&&) = delete;
     private:
         int64_t state {}; // Intermediate or fully parsed value
         bool is_fully_parsed { false };
         bool is_negative { false };
     };
 
-    //class string_parser : public stateful_parser
+    class simple_string_parser final : public stateful_parser
+    {
+    public:
+        explicit simple_string_parser() : stateful_parser() {}
+
+        [[nodiscard]] bool is_done() const override { return is_fully_parsed; }
+        [[nodiscard]] size_t parse(std::string_view value, std::vector<data>& data_) override;
+
+    private:
+        std::string state {};
+        bool is_fully_parsed { false };
+    };
 
 
     export class parser
@@ -181,7 +191,7 @@ namespace LambdaSnail::resp::v2
 
         bool is_done_{false};
 
-        std::shared_ptr<int_parser> current_parser {};
+        std::shared_ptr<stateful_parser> current_parser {};
     };
 
 } // namespace LambdaSnail::resp::v2
@@ -191,6 +201,25 @@ profile_constexpr size_t LambdaSnail::resp::v2::parser::add_buffer(std::string_v
     if (buffer.empty()) [[unlikely]]
     {
         return 0;
+    }
+
+    auto start = buffer.begin();
+    switch (static_cast<data_type>(*start))
+    {
+        case data_type::Integer:
+            current_parser = std::make_shared<int_parser>();
+            break;
+        case data_type::SimpleString:
+            current_parser = std::make_shared<simple_string_parser>();
+            break;
+            // case data_type::Array:
+            // case data_type::BulkString:
+            // case data_type::Boolean:
+            // case data_type::Double:
+            // case data_type::Null:
+
+            // default:
+            //     break;
     }
 
     if (current_parser)
@@ -205,23 +234,7 @@ profile_constexpr size_t LambdaSnail::resp::v2::parser::add_buffer(std::string_v
         return num;
     }
 
-    auto start = buffer.begin();
-    switch (static_cast<data_type>(*start))
-    {
-        case data_type::Integer:
-            current_parser = std::make_shared<int_parser>();
-            auto const num = current_parser->parse(buffer, data_);
-            is_done_       = current_parser->is_done();
-            return num;
-            // case data_type::Array:
-            // case data_type::BulkString:
-            // case data_type::Boolean:
-            // case data_type::Double:
-            // case data_type::Null:
-            // case data_type::SimpleString:
-            // default:
-            //     break;
-    }
+
 
     return 0;
 }
@@ -271,6 +284,79 @@ size_t LambdaSnail::resp::v2::int_parser::parse(std::string_view value, std::vec
 
     return is_fully_parsed ? value.size() : i - value.begin();
 }
+
+size_t LambdaSnail::resp::v2::simple_string_parser::parse(std::string_view value, std::vector<data>& data_)
+{
+    ZoneScoped;
+
+    assert(not value.empty());
+
+    auto start = value.begin();
+    if (*start == static_cast<char>(data_type::SimpleString))
+    {
+        ++start;
+    }
+
+    auto it = start;
+    while (it != value.end())
+    {
+        if (*it == '\r')
+        {
+            is_fully_parsed = true;
+            break;
+        }
+
+        ++it;
+    }
+
+    auto const num = it - start;
+    state += value.substr(start - value.begin(), num);
+
+    if (is_fully_parsed)
+    {
+        data_.emplace_back(state);
+    }
+
+    return is_fully_parsed ? value.size() : num+1; // +1 to account for the \n at the end
+
+
+    // size_t start  = 0;
+    // size_t length = value.length();
+    // if (*value.begin() == static_cast<char>(data_type::SimpleString))
+    // {
+    //     --length;
+    //     ++start;
+    // }
+    //
+    // if (value.size() > 1 and *(value.end() - 1) == '\n')
+    // {
+    //     length -= 2;
+    // }
+    //
+    // return value.substr(start, length);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

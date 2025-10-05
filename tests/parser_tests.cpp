@@ -108,7 +108,7 @@ TEST(parserTests, TestArrayWithInteger) {
 
     EXPECT_EQ(read, 7);
     EXPECT_EQ(data_.size(), 1);
-    EXPECT_EQ(p.is_done(), true);
+    EXPECT_TRUE(p.is_done());
     EXPECT_EQ(std::get<int64_t>(data_[0]), 1234);
 }
 
@@ -118,12 +118,13 @@ TEST(parserTests, TestArrayWithInteger_Continuation) {
     std::vector<LambdaSnail::resp::v2::data> data_{};
     auto read = p.add_buffer(":1234", data_);
     EXPECT_EQ(read, 5);
+    EXPECT_FALSE(p.is_done());
 
     read = p.add_buffer("567\r\n", data_);
     EXPECT_EQ(read, 5);
 
     EXPECT_EQ(data_.size(), 1);
-    EXPECT_EQ(p.is_done(), true);
+    EXPECT_TRUE(p.is_done());
     EXPECT_EQ(std::get<int64_t>(data_[0]), 1234567);
 }
 
@@ -133,17 +134,44 @@ TEST(parserTests, TestArrayWithInteger_TwoContinuations) {
     std::vector<LambdaSnail::resp::v2::data> data_{};
     auto read = p.add_buffer(":-1234", data_);
     EXPECT_EQ(read, 6);
+    EXPECT_FALSE(p.is_done());
 
     read = p.add_buffer("567", data_);
     EXPECT_EQ(read, 3);
+    EXPECT_FALSE(p.is_done());
 
     read = p.add_buffer("89\r\n", data_);
     EXPECT_EQ(read, 4);
 
     EXPECT_EQ(data_.size(), 1);
-    EXPECT_EQ(p.is_done(), true);
+    EXPECT_TRUE(p.is_done());
     EXPECT_EQ(std::get<int64_t>(data_[0]), -123456789);
 }
+
+TEST(parserTests, TestSimpleString_EmptyString) {
+    LambdaSnail::resp::v2::parser p;
+
+    std::vector<LambdaSnail::resp::v2::data> data_{};
+    auto const read = p.add_buffer("+\r\n", data_);
+
+    EXPECT_EQ(read, 3);
+    EXPECT_TRUE(p.is_done());
+    EXPECT_EQ(data_.size(), 1);
+    EXPECT_TRUE(std::get<std::string>(data_[0]).empty());
+}
+
+TEST(parserTests, TestSimpleString_OnePass) {
+    LambdaSnail::resp::v2::parser p;
+
+    std::vector<LambdaSnail::resp::v2::data> data_{};
+    auto const read = p.add_buffer("+Hello World\r\n", data_);
+
+    EXPECT_EQ(read, 14);
+    EXPECT_TRUE(p.is_done());
+    EXPECT_EQ(data_.size(), 1);
+    EXPECT_EQ(std::get<std::string>(data_[0]), "Hello World");
+}
+
 //
 //
 // // TYPED_TEST_SUITE_P(
