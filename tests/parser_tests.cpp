@@ -172,6 +172,51 @@ TEST(parserTests, TestSimpleString_OnePass) {
     EXPECT_EQ(std::get<std::string>(data_[0]), "Hello World");
 }
 
+TEST(parserTests, TestSimpleString_TerminationInLastPass) {
+    LambdaSnail::resp::v2::parser p;
+
+    std::vector<LambdaSnail::resp::v2::data> data_{};
+    auto read = p.add_buffer("+Hello World", data_);
+    EXPECT_EQ(read, 12);
+    EXPECT_FALSE(p.is_done());
+
+    read = p.add_buffer("\r\n", data_);
+    EXPECT_EQ(read, 2);
+    EXPECT_TRUE(p.is_done());
+
+    EXPECT_EQ(data_.size(), 1);
+    EXPECT_EQ(std::get<std::string>(data_[0]), "Hello World");
+}
+
+TEST(parserTests, TestSimpleString_TwoPasses) {
+    LambdaSnail::resp::v2::parser p;
+
+    std::vector<LambdaSnail::resp::v2::data> data_{};
+    auto read = p.add_buffer("+Hello ", data_);
+    EXPECT_EQ(read, 7);
+    EXPECT_FALSE(p.is_done());
+
+    read = p.add_buffer("World\r\n", data_);
+    EXPECT_EQ(read, 7);
+    EXPECT_TRUE(p.is_done());
+
+    EXPECT_EQ(data_.size(), 1);
+    EXPECT_EQ(std::get<std::string>(data_[0]), "Hello World");
+}
+
+TEST(parserTests, TestMixedValues_StringAndInt_OnePass) {
+    LambdaSnail::resp::v2::parser p;
+
+    std::vector<LambdaSnail::resp::v2::data> data_{};
+    auto read = p.add_buffer("+Hello World\r\n:1234\r\n", data_);
+    EXPECT_EQ(read, 21);
+    EXPECT_TRUE(p.is_done());
+
+    EXPECT_EQ(data_.size(), 2);
+    EXPECT_EQ(std::get<std::string>(data_[0]), "Hello World");
+    EXPECT_EQ(std::get<int64_t>(data_[1]), 1234);
+}
+
 //
 //
 // // TYPED_TEST_SUITE_P(
