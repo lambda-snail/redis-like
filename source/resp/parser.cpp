@@ -129,6 +129,31 @@ namespace LambdaSnail::resp::v2
 {
     export typedef std::variant<int64_t> data;
 
+    template<typename TValue>
+    class stateful_parser
+    {
+    public:
+        [[nodiscard]] virtual TValue get_value() const = 0;
+        [[nodiscard]] virtual bool is_done() const = 0;
+
+        [[nodiscard]] virtual size_t parse(std::string_view value, std::vector<data>& data_) = 0;;
+    };
+
+    template<typename TInt = int64_t> requires std::is_integral_v<TInt>
+    class int_parser : stateful_parser<TInt>
+    {
+    public:
+        [[nodiscard]] TInt get_value() const override { assert(is_fully_parsed); return state; }
+        [[nodiscard]] bool is_done() const override { return is_fully_parsed; }
+
+        [[nodiscard]] size_t parse(std::string_view value, std::vector<data>& data_) override;
+    private:
+        TInt state {}; // Intermediate or fully parsed value
+        bool is_fully_parsed { false };
+        bool is_negative { false };
+    };
+
+
     export class parser
     {
     public:
@@ -146,63 +171,74 @@ namespace LambdaSnail::resp::v2
         parse_result parse_int(std::string_view value, std::vector<data>& data_);
 
         bool is_done_{false};
+
+        std::shared_ptr<int_parser<>> current_parser {};
     };
 
 } // namespace LambdaSnail::resp::v2
 
 profile_constexpr size_t LambdaSnail::resp::v2::parser::add_buffer(std::string_view buffer, std::vector<data>& data_)
 {
-    if (not buffer.empty())
+    if (buffer.empty()) [[unlikely]]
     {
-        auto start = buffer.begin();
-        switch (static_cast<data_type>(*start))
-        {
-            case data_type::Integer:
-                auto const [done, num] = parse_int(buffer, data_);
-                is_done_               = done;
-                return num;
-                // case data_type::Array:
-                // case data_type::BulkString:
-                // case data_type::Boolean:
-                // case data_type::Double:
-                // case data_type::Null:
-                // case data_type::SimpleString:
-                // default:
-                //     break;
-        }
+        return 0;
     }
 
+    if (current_parser)
+    {
+        auto const num = current_parser->parse(buffer, data_);
+        is_done_       = current_parser->is_done();
+        if (is_done_)
+        {
+            current_parser.reset();
+        }
+
+        return num;
+    }
+
+    auto start = buffer.begin();
+    switch (static_cast<data_type>(*start))
+    {
+        case data_type::Integer:
+            current_parser = std::make_shared<int_parser<>>();
+            auto const num = current_parser->parse(buffer, data_);
+            is_done_       = current_parser->is_done();
+            return num;
+            // case data_type::Array:
+            // case data_type::BulkString:
+            // case data_type::Boolean:
+            // case data_type::Double:
+            // case data_type::Null:
+            // case data_type::SimpleString:
+            // default:
+            //     break;
+    }
 
     return 0;
 }
 
-LambdaSnail::resp::v2::parser::parse_result LambdaSnail::resp::v2::parser::parse_int(std::string_view value,
-                                                                                     std::vector<data>& data_)
+
+template<typename TInt>
+        requires std::is_integral_v<TInt>
+    size_t LambdaSnail::resp::v2::int_parser<TInt>::parse(std::string_view value, std::vector<data>& data_)
 {
     ZoneScoped;
 
-    assert(value.size() >= 1);
+    assert(not value.empty());
 
     auto it_start = value.begin();
     if (*it_start == static_cast<char>(data_type::Integer))
     {
         ++it_start;
+
+        // We only need to check for negativity when parsing the first part of an integer
+        is_negative = *it_start == '-';
+        if (is_negative)
+        {
+            ++it_start;
+        }
     }
 
-    bool const is_negative{*it_start == '-'};
-    if (is_negative)
-    {
-        ++it_start;
-    }
-
-    // auto end = value.end();
-    // if (*(end - 1) == '\n')
-    // {
-    //     end -= 2;
-    // }
-
-    bool is_fully_parsed {false};
-    int64_t integer{};
     auto i = it_start;
     for (; i < value.end(); ++i)
     {
@@ -212,27 +248,85 @@ LambdaSnail::resp::v2::parser::parse_result LambdaSnail::resp::v2::parser::parse
         //     return error
         // }
 
-        // TODO: Partial result
         if (*i == '\r')
         {
             is_fully_parsed = true;
+            break;
         }
 
-        integer = (integer * 10) + (*i - '0');
+        state = (state * 10) + (*i - '0');
     }
 
     if (is_fully_parsed)
     {
-        data_.emplace_back(is_negative ? -integer : integer);
+        data_.emplace_back(is_negative ? -state : state);
     }
 
-    // TODO: Perhaps this should be refactored into a parser for ints, that stores the state (the int computed so far)
-    // For each type we then have one parser that knows how to store the intermediate values
+    return is_fully_parsed ? value.size() : i - value.begin();
+}
 
-    return {
-        .is_done = is_fully_parsed,
-        .num_read = is_fully_parsed ? value.size() : i - value.begin()
-    };
+
+
+
+
+
+LambdaSnail::resp::v2::parser::parse_result LambdaSnail::resp::v2::parser::parse_int(std::string_view value,
+                                                                                     std::vector<data>& data_)
+{
+    // ZoneScoped;
+    //
+    // assert(not value.empty());
+    //
+    // auto it_start = value.begin();
+    // if (*it_start == static_cast<char>(data_type::Integer))
+    // {
+    //     ++it_start;
+    // }
+    //
+    // bool const is_negative{*it_start == '-'};
+    // if (is_negative)
+    // {
+    //     ++it_start;
+    // }
+    //
+    // // auto end = value.end();
+    // // if (*(end - 1) == '\n')
+    // // {
+    // //     end -= 2;
+    // // }
+    //
+    // bool is_fully_parsed {false};
+    // int64_t integer{};
+    // auto i = it_start;
+    // for (; i < value.end(); ++i)
+    // {
+    //     // TODO: Check for errors
+    //     // if (*i < '0' or *i > '9')
+    //     // {
+    //     //     return error
+    //     // }
+    //
+    //     // TODO: Partial result
+    //     if (*i == '\r')
+    //     {
+    //         is_fully_parsed = true;
+    //     }
+    //
+    //     integer = (integer * 10) + (*i - '0');
+    // }
+    //
+    // if (is_fully_parsed)
+    // {
+    //     data_.emplace_back(is_negative ? -integer : integer);
+    // }
+    //
+    // // TODO: Perhaps this should be refactored into a parser for ints, that stores the state (the int computed so far)
+    // // For each type we then have one parser that knows how to store the intermediate values
+    //
+    // return {
+    //     .is_done = is_fully_parsed,
+    //     .num_read = is_fully_parsed ? value.size() : i - value.begin()
+    // };
 }
 
 

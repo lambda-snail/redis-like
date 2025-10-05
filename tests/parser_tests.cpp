@@ -112,6 +112,39 @@ TEST(parserTests, TestArrayWithInteger) {
     EXPECT_EQ(std::get<int64_t>(data_[0]), 1234);
 }
 
+TEST(parserTests, TestArrayWithInteger_Continuation) {
+    LambdaSnail::resp::v2::parser p;
+
+    std::vector<LambdaSnail::resp::v2::data> data_{};
+    auto read = p.add_buffer(":1234", data_);
+    EXPECT_EQ(read, 5);
+
+    read = p.add_buffer("567\r\n", data_);
+    EXPECT_EQ(read, 5);
+
+    EXPECT_EQ(data_.size(), 1);
+    EXPECT_EQ(p.is_done(), true);
+    EXPECT_EQ(std::get<int64_t>(data_[0]), 1234567);
+}
+
+TEST(parserTests, TestArrayWithInteger_TwoContinuations) {
+    LambdaSnail::resp::v2::parser p;
+
+    std::vector<LambdaSnail::resp::v2::data> data_{};
+    auto read = p.add_buffer(":-1234", data_);
+    EXPECT_EQ(read, 6);
+
+    read = p.add_buffer("567", data_);
+    EXPECT_EQ(read, 3);
+
+    read = p.add_buffer("89\r\n", data_);
+    EXPECT_EQ(read, 4);
+
+    EXPECT_EQ(data_.size(), 1);
+    EXPECT_EQ(p.is_done(), true);
+    EXPECT_EQ(std::get<int64_t>(data_[0]), -123456789);
+}
+
 
 // TYPED_TEST_SUITE_P(
 //     ValidRespStringTest,
