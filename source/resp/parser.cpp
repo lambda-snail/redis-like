@@ -1,5 +1,6 @@
 module;
 
+#include <asio/detail/reactive_socket_accept_op.hpp>
 #include <cassert>
 #include <cmath>
 #include <expected>
@@ -9,6 +10,8 @@ module;
 #include <vector>
 
 #include <tracy/Tracy.hpp>
+
+#include "../../build/debug/cli11_proj-src/include/CLI/TypeTools.hpp"
 
 /**
  * The Tracy macros for instrumenting a block are not compatible with constexpr, so in
@@ -129,29 +132,37 @@ namespace LambdaSnail::resp::v2
 {
     export typedef std::variant<int64_t> data;
 
-    template<typename TValue>
-    class stateful_parser
+    export class stateful_parser
     {
     public:
-        [[nodiscard]] virtual TValue get_value() const = 0;
+        //[[nodiscard]] virtual data get_value() const = 0;
         [[nodiscard]] virtual bool is_done() const = 0;
+        [[nodiscard]] virtual size_t parse(std::string_view value, std::vector<data>& data_) = 0;
 
-        [[nodiscard]] virtual size_t parse(std::string_view value, std::vector<data>& data_) = 0;;
+        virtual ~stateful_parser() = default;
     };
 
-    template<typename TInt = int64_t> requires std::is_integral_v<TInt>
-    class int_parser : stateful_parser<TInt>
+    export class int_parser final : public stateful_parser
     {
     public:
-        [[nodiscard]] TInt get_value() const override { assert(is_fully_parsed); return state; }
+        explicit int_parser() : stateful_parser() {}
+
+        //[[nodiscard]] data get_value() const override { assert(is_fully_parsed); return data{ state }; }
         [[nodiscard]] bool is_done() const override { return is_fully_parsed; }
 
         [[nodiscard]] size_t parse(std::string_view value, std::vector<data>& data_) override;
+
+        int_parser(int_parser&& parser) noexcept = delete;
+        int_parser(const int_parser& parser) = delete;
+        int_parser& operator=(int_parser const&) const = delete;
+        int_parser& operator=(int_parser const&&) = delete;
     private:
-        TInt state {}; // Intermediate or fully parsed value
+        int64_t state {}; // Intermediate or fully parsed value
         bool is_fully_parsed { false };
         bool is_negative { false };
     };
+
+    //class string_parser : public stateful_parser
 
 
     export class parser
@@ -168,11 +179,9 @@ namespace LambdaSnail::resp::v2
             size_t num_read{0};
         };
 
-        parse_result parse_int(std::string_view value, std::vector<data>& data_);
-
         bool is_done_{false};
 
-        std::shared_ptr<int_parser<>> current_parser {};
+        std::shared_ptr<int_parser> current_parser {};
     };
 
 } // namespace LambdaSnail::resp::v2
@@ -200,7 +209,7 @@ profile_constexpr size_t LambdaSnail::resp::v2::parser::add_buffer(std::string_v
     switch (static_cast<data_type>(*start))
     {
         case data_type::Integer:
-            current_parser = std::make_shared<int_parser<>>();
+            current_parser = std::make_shared<int_parser>();
             auto const num = current_parser->parse(buffer, data_);
             is_done_       = current_parser->is_done();
             return num;
@@ -218,9 +227,7 @@ profile_constexpr size_t LambdaSnail::resp::v2::parser::add_buffer(std::string_v
 }
 
 
-template<typename TInt>
-        requires std::is_integral_v<TInt>
-    size_t LambdaSnail::resp::v2::int_parser<TInt>::parse(std::string_view value, std::vector<data>& data_)
+size_t LambdaSnail::resp::v2::int_parser::parse(std::string_view value, std::vector<data>& data_)
 {
     ZoneScoped;
 
@@ -270,64 +277,12 @@ template<typename TInt>
 
 
 
-LambdaSnail::resp::v2::parser::parse_result LambdaSnail::resp::v2::parser::parse_int(std::string_view value,
-                                                                                     std::vector<data>& data_)
-{
-    // ZoneScoped;
-    //
-    // assert(not value.empty());
-    //
-    // auto it_start = value.begin();
-    // if (*it_start == static_cast<char>(data_type::Integer))
-    // {
-    //     ++it_start;
-    // }
-    //
-    // bool const is_negative{*it_start == '-'};
-    // if (is_negative)
-    // {
-    //     ++it_start;
-    // }
-    //
-    // // auto end = value.end();
-    // // if (*(end - 1) == '\n')
-    // // {
-    // //     end -= 2;
-    // // }
-    //
-    // bool is_fully_parsed {false};
-    // int64_t integer{};
-    // auto i = it_start;
-    // for (; i < value.end(); ++i)
-    // {
-    //     // TODO: Check for errors
-    //     // if (*i < '0' or *i > '9')
-    //     // {
-    //     //     return error
-    //     // }
-    //
-    //     // TODO: Partial result
-    //     if (*i == '\r')
-    //     {
-    //         is_fully_parsed = true;
-    //     }
-    //
-    //     integer = (integer * 10) + (*i - '0');
-    // }
-    //
-    // if (is_fully_parsed)
-    // {
-    //     data_.emplace_back(is_negative ? -integer : integer);
-    // }
-    //
-    // // TODO: Perhaps this should be refactored into a parser for ints, that stores the state (the int computed so far)
-    // // For each type we then have one parser that knows how to store the intermediate values
-    //
-    // return {
-    //     .is_done = is_fully_parsed,
-    //     .num_read = is_fully_parsed ? value.size() : i - value.begin()
-    // };
-}
+
+
+
+
+
+
 
 
 profile_constexpr LambdaSnail::resp::data_view::data_view(std::string_view message)
