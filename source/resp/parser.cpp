@@ -211,6 +211,12 @@ namespace LambdaSnail::resp::v2
         void add_parser(std::string_view::const_iterator start);
     };
 
+    /**
+     * The array parser will always run first in a well-formed message. To make this work, the array parser
+     * communicates to the parser how many elements are expected to appear in the message. This is slightly
+     * convoluted but works for the purposes of this limited scenario where we know that there first thing
+     * to parse is always an array, and no nested arrays exist.
+     */
     class array_parser final : public int_parser
     {
     public:
@@ -252,10 +258,7 @@ profile_constexpr size_t LambdaSnail::resp::v2::parser::add_buffer(std::string_v
         std::advance(it, num);
     }
 
-    if (data_.size() == num_elements)
-    {
-        is_done_ = true;
-    }
+    is_done_ = data_.size() == num_elements;
 
     return it - buffer.begin();
 }
