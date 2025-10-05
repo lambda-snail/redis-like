@@ -131,7 +131,7 @@ namespace LambdaSnail::resp
 
 namespace LambdaSnail::resp::v2
 {
-    export typedef std::variant<int64_t, std::string> data;
+    export typedef std::variant<int64_t, std::string, double> data;
 
     class stateful_parser
     {
@@ -163,6 +163,21 @@ namespace LambdaSnail::resp::v2
         // int_parser& operator=(int_parser const&&) = delete;
     private:
         int64_t state {}; // Intermediate or fully parsed value
+        bool is_negative { false };
+    };
+
+    class double_parser : public stateful_parser
+    {
+    public:
+        explicit double_parser() : stateful_parser(static_cast<char>(data_type::Double)) {}
+
+        [[nodiscard]] size_t parse(std::string_view value, std::vector<data>& data_) override;
+
+    private:
+        double state {};
+        double fraction {};
+        double power { 1 };
+        bool is_fraction { false };
         bool is_negative { false };
     };
 
@@ -269,7 +284,6 @@ void LambdaSnail::resp::v2::parser::add_parser(std::string_view::const_iterator 
     {
         case data_type::Integer:
             parsers.emplace(std::move(std::make_shared<int_parser>()));
-//            current_parser = std::make_shared<int_parser>();
             break;
         case data_type::SimpleString:
             parsers.emplace(std::move(std::make_shared<simple_string_parser>()));
@@ -279,7 +293,10 @@ void LambdaSnail::resp::v2::parser::add_parser(std::string_view::const_iterator 
             break;
             // case data_type::BulkString:
             // case data_type::Boolean:
-            // case data_type::Double:
+            case data_type::Double:
+            parsers.emplace(std::move(std::make_shared<double_parser>()));
+            break;
+
             // case data_type::Null:
 
         default:
@@ -333,6 +350,95 @@ size_t LambdaSnail::resp::v2::int_parser::parse(std::string_view value, std::vec
     if (is_fully_parsed)
     {
         data_.emplace_back(is_negative ? -state : state);
+    }
+
+    return it - value.begin();
+}
+
+size_t LambdaSnail::resp::v2::double_parser::parse(std::string_view value, std::vector<data>& data_)
+{
+    ZoneScoped;
+
+    assert(not value.empty());
+
+    auto it_start = value.begin();
+    if (*it_start == prefix_)
+    {
+        ++it_start;
+
+        // We only need to check for negativity when parsing the first part of an integer
+        is_negative = *it_start == '-';
+        if (is_negative)
+        {
+            ++it_start;
+        }
+    }
+
+    auto it = it_start;
+    if (not is_fraction)
+    {
+        for (; it != value.end(); ++it)
+        {
+            // TODO: Check for errors
+            // if (*i < '0' or *i > '9')
+            // {
+            //     return error
+            // }
+
+            switch (*it)
+            {
+                case '\r':
+                    continue;
+
+                case '\n':
+                    ++it; // Compensate for premature loop exit
+                    is_fully_parsed = true;
+                    goto exit;
+
+                case '.':
+                case ',':
+                    ++it;
+                    is_fraction = true;
+                    goto fraction;
+
+                default:
+                    // TODO: Error handling
+            }
+
+            state = (state * 10.) + (*it - '0');
+        }
+    }
+
+fraction:
+    if (is_fraction)
+    {
+        // TODO: Check for errors
+        for (; it != value.end(); ++it)
+        {
+            switch (*it)
+            {
+                case '\r':
+                    continue;
+                    break;
+
+                case '\n':
+                    ++it; // Compensate for premature loop exit
+                    is_fully_parsed = true;
+                    goto exit;
+                    break;
+
+                default:
+                    // TODO: Error handling
+            }
+
+            fraction = fraction + (*it - '0') * std::pow(.1, power++);
+        }
+    }
+
+exit:
+    if (is_fully_parsed)
+    {
+        data_.emplace_back((state + fraction) * (is_negative ? -1. : 1.));
     }
 
     return it - value.begin();

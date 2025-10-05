@@ -219,6 +219,78 @@ TEST(parserTests, TestMixedValues_StringAndInt_OnePass) {
     EXPECT_EQ(std::get<int64_t>(data_[1]), 1234);
 }
 
+TEST(parserTests, TestDouble_OnePass) {
+    LambdaSnail::resp::v2::parser p;
+
+    std::vector<LambdaSnail::resp::v2::data> data_{};
+    auto const read = p.add_buffer(",10.92\r\n", data_);
+
+    EXPECT_EQ(read, 8);
+    EXPECT_TRUE(p.is_done());
+    EXPECT_EQ(data_.size(), 1);
+    EXPECT_DOUBLE_EQ(std::get<double>(data_[0]), 10.92);
+}
+
+TEST(parserTests, TestDouble_Negative) {
+    LambdaSnail::resp::v2::parser p;
+
+    std::vector<LambdaSnail::resp::v2::data> data_{};
+    auto const read = p.add_buffer(",-10.92\r\n", data_);
+
+    EXPECT_EQ(read, 9);
+    EXPECT_TRUE(p.is_done());
+    EXPECT_EQ(data_.size(), 1);
+    EXPECT_DOUBLE_EQ(std::get<double>(data_[0]), -10.92);
+}
+
+TEST(parserTests, TestDouble_Split) {
+    LambdaSnail::resp::v2::parser p;
+
+    std::vector<LambdaSnail::resp::v2::data> data_{};
+    auto read = p.add_buffer(",-10.", data_);
+    EXPECT_EQ(read, 5);
+    EXPECT_FALSE(p.is_done());
+
+    read = p.add_buffer("92\r\n", data_);
+    EXPECT_EQ(read, 4);
+    EXPECT_TRUE(p.is_done());
+    EXPECT_EQ(data_.size(), 1);
+    EXPECT_DOUBLE_EQ(std::get<double>(data_[0]), -10.92);
+}
+
+TEST(parserTests, TestDouble_SplitEnding) {
+    LambdaSnail::resp::v2::parser p;
+
+    std::vector<LambdaSnail::resp::v2::data> data_{};
+    auto read = p.add_buffer(",10.92\r", data_);
+    EXPECT_EQ(read, 7);
+    EXPECT_FALSE(p.is_done());
+
+    read = p.add_buffer("\n", data_);
+    EXPECT_EQ(read, 1);
+    EXPECT_TRUE(p.is_done());
+    EXPECT_EQ(data_.size(), 1);
+    EXPECT_DOUBLE_EQ(std::get<double>(data_[0]), 10.92);
+}
+
+TEST(parserTests, TestDouble_NoDecimals) {
+    LambdaSnail::resp::v2::parser p;
+
+    std::vector<LambdaSnail::resp::v2::data> data_{};
+    auto read = p.add_buffer(",10.\r\n", data_);
+    EXPECT_EQ(read, 6);
+    EXPECT_TRUE(p.is_done());
+    EXPECT_EQ(data_.size(), 1);
+    EXPECT_DOUBLE_EQ(std::get<double>(data_[0]), 10);
+
+    data_.clear();
+    read = p.add_buffer(",10\r\n", data_);
+    EXPECT_EQ(read, 5);
+    EXPECT_TRUE(p.is_done());
+    EXPECT_EQ(data_.size(), 1);
+    EXPECT_DOUBLE_EQ(std::get<double>(data_[0]), 10);
+}
+
 namespace ArrayTests
 {
     template<typename T>
