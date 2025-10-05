@@ -240,10 +240,16 @@ namespace ArrayTests
         std::vector<LambdaSnail::resp::v2::data> expected { -456, 1234 };
     };
 
-    struct TwoValues_SplitNewline
+    struct TwoValues_SplitNewline_Int
     {
         std::vector<std::string> data { "*2\r\n", ":-456\r", "\n:1234\r\n" };
         std::vector<LambdaSnail::resp::v2::data> expected { -456, 1234 };
+    };
+
+    struct TwoValues_SplitNewline_String
+    {
+        std::vector<std::string> data { "*2\r", "\n+Hello", " World!\r", "\n", "+Awesome Parser eh?\r\n" };
+        std::vector<LambdaSnail::resp::v2::data> expected { "Hello World!", "Awesome Parser eh?" };
     };
 
     struct ThreeValues
@@ -276,7 +282,7 @@ namespace ArrayTests
     using ValidArrayTest = ::testing::Types<
         TwoValues,
         TwoValues_Split1,
-        TwoValues_SplitNewline,
+        TwoValues_SplitNewline_Int, TwoValues_SplitNewline_String,
         ThreeValues
     >;
 

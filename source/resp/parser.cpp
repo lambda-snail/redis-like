@@ -350,19 +350,26 @@ size_t LambdaSnail::resp::v2::simple_string_parser::parse(std::string_view value
         ++start;
     }
 
+    int rn_adjustment = 0;
     auto it = start;
-    while (it != value.end())
+    for (; it != value.end(); ++it)
     {
         if (*it == '\r')
         {
+            ++rn_adjustment;
+            continue;
+        }
+
+        if (*it == '\n')
+        {
+            ++rn_adjustment;
+            ++it;
             is_fully_parsed = true;
             break;
         }
-
-        ++it;
     }
 
-    auto const num_characters = it - start;
+    auto const num_characters = it - start - rn_adjustment;
     state += value.substr(start - value.begin(), num_characters);
 
     if (is_fully_parsed)
@@ -370,7 +377,7 @@ size_t LambdaSnail::resp::v2::simple_string_parser::parse(std::string_view value
         data_.emplace_back(state);
     }
 
-    return is_fully_parsed ? it - value.begin() + 2 : it - value.begin(); // +2 to account for the \r and \n at the end
+    return it - value.begin();
 }
 
 size_t LambdaSnail::resp::v2::array_parser::parse(std::string_view value, std::vector<data>& data_)
