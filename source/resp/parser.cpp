@@ -178,6 +178,7 @@ namespace LambdaSnail::resp::v2
     export class parser
     {
     public:
+        void add_parser(std::string_view::const_iterator start);
         [[nodiscard]] profile_constexpr size_t add_buffer(std::string_view buffer, std::vector<data>& data_);
 
         [[nodiscard]] inline bool is_done() const { return is_done_; };
@@ -203,7 +204,31 @@ profile_constexpr size_t LambdaSnail::resp::v2::parser::add_buffer(std::string_v
         return 0;
     }
 
-    auto start = buffer.begin();
+    auto it = buffer.begin();
+    while (it != buffer.end())
+    {
+        if (not current_parser)
+        {
+            add_parser(it);
+        }
+
+        assert(current_parser);
+
+        auto const num = current_parser->parse(std::string_view(it, buffer.end()), data_);
+        is_done_       = current_parser->is_done();
+        if (is_done_)
+        {
+            current_parser.reset();
+        }
+
+        std::advance(it, num);
+    }
+
+    return it - buffer.begin();
+}
+
+void LambdaSnail::resp::v2::parser::add_parser(std::string_view::const_iterator start)
+{
     switch (static_cast<data_type>(*start))
     {
         case data_type::Integer:
@@ -218,25 +243,9 @@ profile_constexpr size_t LambdaSnail::resp::v2::parser::add_buffer(std::string_v
             // case data_type::Double:
             // case data_type::Null:
 
-            // default:
-            //     break;
+        default:
+            std::unreachable();
     }
-
-    if (current_parser)
-    {
-        auto const num = current_parser->parse(buffer, data_);
-        is_done_       = current_parser->is_done();
-        if (is_done_)
-        {
-            current_parser.reset();
-        }
-
-        return num;
-    }
-
-
-
-    return 0;
 }
 
 
@@ -309,15 +318,15 @@ size_t LambdaSnail::resp::v2::simple_string_parser::parse(std::string_view value
         ++it;
     }
 
-    auto const num = it - start;
-    state += value.substr(start - value.begin(), num);
+    auto const num_characters = it - start;
+    state += value.substr(start - value.begin(), num_characters);
 
     if (is_fully_parsed)
     {
         data_.emplace_back(state);
     }
 
-    return is_fully_parsed ? value.size() : num+1; // +1 to account for the \n at the end
+    return is_fully_parsed ? it - value.begin() + 2 : it - value.begin(); // +2 to account for the \r and \n at the end
 
 
     // size_t start  = 0;
