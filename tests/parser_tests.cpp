@@ -291,6 +291,60 @@ TEST(parserTests, TestDouble_NoDecimals) {
     EXPECT_DOUBLE_EQ(std::get<double>(data_[0]), 10);
 }
 
+ TEST(parserTests, TestBool_OnePass_True) {
+     LambdaSnail::resp::v2::parser p;
+
+     std::vector<LambdaSnail::resp::v2::data> data_{};
+     auto const read = p.add_buffer("#True\r\n", data_);
+
+     EXPECT_EQ(read, 7);
+     EXPECT_TRUE(p.is_done());
+     EXPECT_EQ(data_.size(), 1);
+     EXPECT_TRUE(std::get<bool>(data_[0]));
+ }
+
+ TEST(parserTests, TestBool_OnePass_False) {
+     LambdaSnail::resp::v2::parser p;
+
+     std::vector<LambdaSnail::resp::v2::data> data_{};
+     auto const read = p.add_buffer("#False\r\n", data_);
+
+     EXPECT_EQ(read, 8);
+     EXPECT_TRUE(p.is_done());
+     EXPECT_EQ(data_.size(), 1);
+     EXPECT_FALSE(std::get<bool>(data_[0]));
+}
+
+TEST(parserTests, TestBool_Split) {
+    LambdaSnail::resp::v2::parser p;
+
+    std::vector<LambdaSnail::resp::v2::data> data_{};
+    auto read = p.add_buffer("#Tr", data_);
+    EXPECT_EQ(read, 3);
+    EXPECT_FALSE(p.is_done());
+
+    read = p.add_buffer("ue\r\n", data_);
+    EXPECT_EQ(read, 4);
+    EXPECT_TRUE(p.is_done());
+    EXPECT_EQ(data_.size(), 1);
+    EXPECT_TRUE(std::get<bool>(data_[0]));
+}
+
+TEST(parserTests, TestBool_SplitEnding) {
+    LambdaSnail::resp::v2::parser p;
+
+    std::vector<LambdaSnail::resp::v2::data> data_{};
+    auto read = p.add_buffer("#F\r", data_);
+    EXPECT_EQ(read, 3);
+    EXPECT_FALSE(p.is_done());
+
+    read = p.add_buffer("\n", data_);
+    EXPECT_EQ(read, 1);
+    EXPECT_TRUE(p.is_done());
+    EXPECT_EQ(data_.size(), 1);
+    EXPECT_FALSE(std::get<bool>(data_[0]));
+}
+
 namespace ArrayTests
 {
     template<typename T>

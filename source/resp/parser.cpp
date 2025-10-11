@@ -131,7 +131,9 @@ namespace LambdaSnail::resp
 
 namespace LambdaSnail::resp::v2
 {
-    export typedef std::variant<int64_t, std::string, double> data;
+    export struct Null {};
+
+    export typedef std::variant<int64_t, std::string, double, bool> data;
 
     class stateful_parser
     {
@@ -181,6 +183,16 @@ namespace LambdaSnail::resp::v2
         bool is_negative { false };
     };
 
+    class boolean_parser : public stateful_parser
+    {
+    public:
+        explicit boolean_parser() : stateful_parser(static_cast<char>(data_type::Boolean)) {}
+
+        [[nodiscard]] size_t parse(std::string_view value, std::vector<data>& data_) override;
+    private:
+        bool state { false };
+    };
+
     class simple_string_parser final : public stateful_parser
     {
     public:
@@ -192,6 +204,20 @@ namespace LambdaSnail::resp::v2
         std::string state {};
     };
 
+    // class bulk_string_parser final : public stateful_parser
+    // {
+    // public:
+    //     explicit bulk_string_parser() : stateful_parser(static_cast<char>(data_type::BulkString)) {}
+    //
+    //     [[nodiscard]] size_t parse(std::string_view value, std::vector<data>& data_) override;
+    //
+    // private:
+    //     size_t total_num_characters { 0 };
+    //     std::string state {};
+    //
+    //     int_parser num_parser = int_parser(static_cast<char>(data_type::BulkString));
+    // };
+
     /**
      * Online parser that can be called incrementally to parse a message in chunks.
      *
@@ -202,6 +228,7 @@ namespace LambdaSnail::resp::v2
      *
      * However, this is not valid in general for RESP, as arrays can contain nested arrays arbitrarily.
      */
+    // TODO: Write tests for parsing without type marker in message - should not segfault
     export class parser
     {
     public:
@@ -209,7 +236,7 @@ namespace LambdaSnail::resp::v2
 
         [[nodiscard]] inline bool is_done() const { return is_done_; };
 
-        void set_num_elements(size_t num) { num_elements = num; };
+        void set_expected_num_elements(size_t num) { num_elements = num; };
 
     private:
         struct parse_result
@@ -232,6 +259,7 @@ namespace LambdaSnail::resp::v2
      * convoluted but works for the purposes of this limited scenario where we know that there first thing
      * to parse is always an array, and no nested arrays exist.
      */
+    // TODO: Use int parser as member instead
     class array_parser final : public int_parser
     {
     public:
@@ -291,13 +319,15 @@ void LambdaSnail::resp::v2::parser::add_parser(std::string_view::const_iterator 
         case data_type::Array:
             parsers.emplace(std::move(std::make_shared<array_parser>(*this)));
             break;
-            // case data_type::BulkString:
-            // case data_type::Boolean:
-            case data_type::Double:
+        case data_type::Boolean:
+            parsers.emplace(std::move(std::make_shared<boolean_parser>()));
+            break;
+        case data_type::Double:
             parsers.emplace(std::move(std::make_shared<double_parser>()));
             break;
 
-            // case data_type::Null:
+        // case data_type::BulkString:
+        // case data_type::Null:
 
         default:
             std::unreachable();
@@ -444,6 +474,59 @@ exit:
     return it - value.begin();
 }
 
+size_t LambdaSnail::resp::v2::boolean_parser::parse(std::string_view value, std::vector<data>& data_)
+{
+    ZoneScoped;
+
+    assert(not value.empty());
+
+    auto start = value.begin();
+    if (*start == prefix_)
+    {
+        ++start;
+
+        switch (*start)
+        {
+            case '1':
+            case 't':
+            case 'T':
+                state = true;
+                break;
+            case '0':
+            case 'f':
+            case 'F':
+                state = false;
+                break;
+            default:
+                // TODO Error handling
+                break;
+        }
+    }
+
+    // Now we simply need to find the end of the value
+    for (; start != value.end(); ++start)
+    {
+        if (*start == '\r')
+        {
+            continue;
+        }
+
+        if (*start == '\n')
+        {
+            ++start;
+            is_fully_parsed = true;
+            break;
+        }
+    }
+
+    if (is_fully_parsed)
+    {
+        data_.emplace_back(state);
+    }
+
+    return start - value.begin();
+}
+
 size_t LambdaSnail::resp::v2::simple_string_parser::parse(std::string_view value, std::vector<data>& data_)
 {
     ZoneScoped;
@@ -501,7 +584,7 @@ size_t LambdaSnail::resp::v2::array_parser::parse(std::string_view value, std::v
         assert(array_size > 0);
 
         data_.reserve(static_cast<size_t>(array_size));
-        parser_.set_num_elements(array_size);
+        parser_.set_expected_num_elements(array_size);
     }
 
     return num;
