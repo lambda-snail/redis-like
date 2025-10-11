@@ -291,28 +291,28 @@ TEST(parserTests, TestDouble_NoDecimals) {
     EXPECT_DOUBLE_EQ(std::get<double>(data_[0]), 10);
 }
 
- TEST(parserTests, TestBool_OnePass_True) {
-     LambdaSnail::resp::v2::parser p;
+TEST(parserTests, TestBool_OnePass_True) {
+    LambdaSnail::resp::v2::parser p;
 
-     std::vector<LambdaSnail::resp::v2::data> data_{};
-     auto const read = p.add_buffer("#True\r\n", data_);
+    std::vector<LambdaSnail::resp::v2::data> data_{};
+    auto const read = p.add_buffer("#True\r\n", data_);
 
-     EXPECT_EQ(read, 7);
-     EXPECT_TRUE(p.is_done());
-     EXPECT_EQ(data_.size(), 1);
-     EXPECT_TRUE(std::get<bool>(data_[0]));
- }
+    EXPECT_EQ(read, 7);
+    EXPECT_TRUE(p.is_done());
+    EXPECT_EQ(data_.size(), 1);
+EXPECT_TRUE(std::get<bool>(data_[0]));
+}
 
- TEST(parserTests, TestBool_OnePass_False) {
-     LambdaSnail::resp::v2::parser p;
+TEST(parserTests, TestBool_OnePass_False) {
+    LambdaSnail::resp::v2::parser p;
 
-     std::vector<LambdaSnail::resp::v2::data> data_{};
-     auto const read = p.add_buffer("#False\r\n", data_);
+    std::vector<LambdaSnail::resp::v2::data> data_{};
+    auto const read = p.add_buffer("#False\r\n", data_);
 
-     EXPECT_EQ(read, 8);
-     EXPECT_TRUE(p.is_done());
-     EXPECT_EQ(data_.size(), 1);
-     EXPECT_FALSE(std::get<bool>(data_[0]));
+    EXPECT_EQ(read, 8);
+    EXPECT_TRUE(p.is_done());
+    EXPECT_EQ(data_.size(), 1);
+EXPECT_FALSE(std::get<bool>(data_[0]));
 }
 
 TEST(parserTests, TestBool_Split) {
@@ -344,6 +344,66 @@ TEST(parserTests, TestBool_SplitEnding) {
     EXPECT_EQ(data_.size(), 1);
     EXPECT_FALSE(std::get<bool>(data_[0]));
 }
+
+TEST(parserTests, TestBulkString_OnePass) {
+    LambdaSnail::resp::v2::parser p;
+
+    std::vector<LambdaSnail::resp::v2::data> data_{};
+    auto const read = p.add_buffer("$12\r\nHello World!\r\n", data_);
+
+    EXPECT_EQ(read, 19);
+    EXPECT_TRUE(p.is_done());
+    EXPECT_EQ(data_.size(), 1);
+    EXPECT_EQ(std::get<std::string>(data_[0]), "Hello World!");
+}
+
+TEST(parserTests, TestBulkString_TwoPasses) {
+    LambdaSnail::resp::v2::parser p;
+
+    std::vector<LambdaSnail::resp::v2::data> data_{};
+    auto read = p.add_buffer("$12\r\nHello ", data_);
+    EXPECT_EQ(read, 11);
+    EXPECT_FALSE(p.is_done());
+
+    read = p.add_buffer("World!\r\n", data_);
+    EXPECT_EQ(read, 8);
+    EXPECT_TRUE(p.is_done());
+
+    EXPECT_EQ(data_.size(), 1);
+    EXPECT_EQ(std::get<std::string>(data_[0]), "Hello World!");
+}
+
+TEST(parserTests, TestBulkString_TwoPassesWithLineEnding) {
+    LambdaSnail::resp::v2::parser p;
+
+    std::vector<LambdaSnail::resp::v2::data> data_{};
+    auto read = p.add_buffer("$13\r\nHello\r\n", data_); //13
+    EXPECT_EQ(read, 12);
+    EXPECT_FALSE(p.is_done());
+
+    read = p.add_buffer("World!\r\n", data_);
+    EXPECT_EQ(read, 8);
+    EXPECT_TRUE(p.is_done());
+
+    EXPECT_EQ(data_.size(), 1);
+    EXPECT_EQ(std::get<std::string>(data_[0]), "Hello\r\nWorld!");
+}
+
+// TEST(parserTests, TestBulkString_ThreePasses) {
+//     LambdaSnail::resp::v2::parser p;
+//
+//     std::vector<LambdaSnail::resp::v2::data> data_{};
+//     auto read = p.add_buffer("$12\r\nHello\r\n", data_);
+//     EXPECT_EQ(read, 12);
+//     EXPECT_FALSE(p.is_done());
+//
+//     read = p.add_buffer("World!\r\n", data_);
+//     EXPECT_EQ(read, 8);
+//     EXPECT_TRUE(p.is_done());
+//
+//     EXPECT_EQ(data_.size(), 1);
+//     EXPECT_EQ(std::get<std::string>(data_[0]), "Hello\r\nWorld!");
+// }
 
 namespace ArrayTests
 {

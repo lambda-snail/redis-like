@@ -218,6 +218,7 @@ namespace LambdaSnail::resp::v2
 
         int_parser size_parser;
 
+        size_t parsed_line_ending { resp_end.size() };
         size_t size { 0 };
         std::string state {};
 
@@ -578,51 +579,72 @@ size_t LambdaSnail::resp::v2::simple_string_parser::parse(std::string_view value
 
 size_t LambdaSnail::resp::v2::bulk_string_parser::parse(std::string_view value, std::vector<data>& data_)
 {
-     ZoneScoped;
+    ZoneScoped;
 
-     assert(not value.empty());
+    assert(not value.empty());
 
-     auto start = value.begin();
+    auto start = value.begin();
 
-     if (not size_parser.is_done())
-     {
-         std::vector<data> size_v{};
-         auto read = size_parser.parse(value, size_v);
+    if (not size_parser.is_done())
+    {
+        std::vector<data> size_v{};
+        auto read = size_parser.parse(value, size_v);
 
-         // TODO: Error
+        // TODO: Error
 
-         if (size_parser.is_done())
-         {
-             assert(size_v.size() == 1);
-             size = std::get<int64_t>(size_v[0]);
-         }
+        if (size_parser.is_done())
+        {
+         assert(size_v.size() == 1);
+         size = std::get<int64_t>(size_v[0]);
+        }
 
-         // Fully read, no characters left in value, or
-         // Not fully read, consumed all characters
-         if (read == value.size())
-         {
-             return value.size();
-         }
+        // Fully read, no characters left in value, or
+        // Not fully read, consumed all characters
+        if (read == value.size())
+        {
+         return value.size();
+        }
 
-         // Fully read, characters left in value
-         std::advance(start, read);
-     }
+        // Fully read, characters left in value
+        std::advance(start, read);
+    }
 
-     auto it = start;
-     for (; it < value.end() and size > 0; ++it)
-     {
-         --size;
-     }
+    auto it = start;
+    for (; it < value.end() and size > 0; ++it)
+    {
+        --size;
+    }
 
-     state += std::string_view(start, it);
+    state += std::string_view(start, it);
 
-     if (size == 0)
-     {
-         is_fully_parsed = true;
-         data_.emplace_back(state);
-     }
+    if (size > 0)
+    {
+        return it - value.begin();
+    }
 
-     return it - value.begin();
+    if (parsed_line_ending > 0)
+    {
+        for (; it < value.end() and parsed_line_ending > 0; ++it)
+        {
+            if (*it == '\r' or *it == '\n') // Technically we also allow strings ending with \n\r ...
+            {
+                --parsed_line_ending;
+            }
+            // TODO: Return error here
+            // else
+            // {
+            //
+            // }
+        }
+    }
+
+    if (parsed_line_ending == 0)
+    {
+        is_fully_parsed = true;
+        data_.emplace_back(state);
+    }
+
+    return it - value.begin();
 }
 
 size_t LambdaSnail::resp::v2::array_parser::parse(std::string_view value, std::vector<data>& data_)
