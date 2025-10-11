@@ -389,21 +389,57 @@ TEST(parserTests, TestBulkString_TwoPassesWithLineEnding) {
     EXPECT_EQ(std::get<std::string>(data_[0]), "Hello\r\nWorld!");
 }
 
-// TEST(parserTests, TestBulkString_ThreePasses) {
-//     LambdaSnail::resp::v2::parser p;
-//
-//     std::vector<LambdaSnail::resp::v2::data> data_{};
-//     auto read = p.add_buffer("$12\r\nHello\r\n", data_);
-//     EXPECT_EQ(read, 12);
-//     EXPECT_FALSE(p.is_done());
-//
-//     read = p.add_buffer("World!\r\n", data_);
-//     EXPECT_EQ(read, 8);
-//     EXPECT_TRUE(p.is_done());
-//
-//     EXPECT_EQ(data_.size(), 1);
-//     EXPECT_EQ(std::get<std::string>(data_[0]), "Hello\r\nWorld!");
-// }
+TEST(parserTests, TestBulkString_ThreePasses) {
+    LambdaSnail::resp::v2::parser p;
+
+    std::vector<LambdaSnail::resp::v2::data> data_{};
+    auto read = p.add_buffer("$20\r\nHello\r", data_);
+    EXPECT_EQ(read, 11);
+    EXPECT_FALSE(p.is_done());
+
+    read = p.add_buffer("\nSanta", data_);
+    EXPECT_EQ(read, 6);
+    EXPECT_FALSE(p.is_done());
+
+    read = p.add_buffer(" Clause!\r\n", data_);
+    EXPECT_EQ(read, 10);
+    EXPECT_TRUE(p.is_done());
+
+    EXPECT_EQ(data_.size(), 1);
+    EXPECT_EQ(std::get<std::string>(data_[0]), "Hello\r\nSanta Clause!");
+}
+
+TEST(parserTests, TestBulkString_SplitEnding) {
+    LambdaSnail::resp::v2::parser p;
+
+    std::vector<LambdaSnail::resp::v2::data> data_{};
+    auto read = p.add_buffer("$13\r\nHello\r\nWorld!\r", data_);
+    EXPECT_EQ(read, 19);
+    EXPECT_FALSE(p.is_done());
+
+    read = p.add_buffer("\n", data_);
+    EXPECT_EQ(read, 1);
+    EXPECT_TRUE(p.is_done());
+
+    EXPECT_EQ(data_.size(), 1);
+    EXPECT_EQ(std::get<std::string>(data_[0]), "Hello\r\nWorld!");
+}
+
+TEST(parserTests, TestBulkString_SplitBeginning) {
+    LambdaSnail::resp::v2::parser p;
+
+    std::vector<LambdaSnail::resp::v2::data> data_{};
+    auto read = p.add_buffer("$13\r", data_);
+    EXPECT_EQ(read, 4);
+    EXPECT_FALSE(p.is_done());
+
+    read = p.add_buffer("\nHello\r\nWorld!\r\n", data_);
+    EXPECT_EQ(read, 16);
+    EXPECT_TRUE(p.is_done());
+
+    EXPECT_EQ(data_.size(), 1);
+    EXPECT_EQ(std::get<std::string>(data_[0]), "Hello\r\nWorld!");
+}
 
 namespace ArrayTests
 {
