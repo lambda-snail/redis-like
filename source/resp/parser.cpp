@@ -132,9 +132,12 @@ namespace LambdaSnail::resp
 
 namespace LambdaSnail::resp::v2
 {
-    export struct Null {};
+    export struct Null
+    {
+        bool operator==(Null const& other) const { return true; }
+    };
 
-    export typedef std::variant<int64_t, std::string, double, bool> data;
+    export typedef std::variant<int64_t, std::string, double, bool, Null> data;
 
     class stateful_parser
     {
