@@ -1,6 +1,6 @@
 module;
 
-#include <asio/detail/reactive_socket_accept_op.hpp>
+
 #include <cassert>
 #include <cmath>
 #include <expected>
@@ -12,7 +12,8 @@ module;
 
 #include <tracy/Tracy.hpp>
 
-#include "../../build/debug/cli11_proj-src/include/CLI/TypeTools.hpp"
+//#include <asio/detail/reactive_socket_accept_op.hpp>
+//#include "../../build/debug/cli11_proj-src/include/CLI/TypeTools.hpp"
 
 /**
  * The Tracy macros for instrumenting a block are not compatible with constexpr, so in
@@ -204,19 +205,24 @@ namespace LambdaSnail::resp::v2
         std::string state {};
     };
 
-    // class bulk_string_parser final : public stateful_parser
-    // {
-    // public:
-    //     explicit bulk_string_parser() : stateful_parser(static_cast<char>(data_type::BulkString)) {}
-    //
-    //     [[nodiscard]] size_t parse(std::string_view value, std::vector<data>& data_) override;
-    //
-    // private:
-    //     size_t total_num_characters { 0 };
-    //     std::string state {};
-    //
-    //     int_parser num_parser = int_parser(static_cast<char>(data_type::BulkString));
-    // };
+    class bulk_string_parser final : public stateful_parser
+    {
+    public:
+        explicit bulk_string_parser() :
+            stateful_parser(static_cast<char>(data_type::BulkString)),
+            size_parser(static_cast<char>(data_type::BulkString)) {}
+
+        [[nodiscard]] size_t parse(std::string_view value, std::vector<data>& data_) override;
+
+    private:
+
+        int_parser size_parser;
+
+        size_t size { 0 };
+        std::string state {};
+
+        int_parser num_parser = int_parser(static_cast<char>(data_type::BulkString));
+    };
 
     /**
      * Online parser that can be called incrementally to parse a message in chunks.
@@ -325,8 +331,9 @@ void LambdaSnail::resp::v2::parser::add_parser(std::string_view::const_iterator 
         case data_type::Double:
             parsers.emplace(std::move(std::make_shared<double_parser>()));
             break;
-
-        // case data_type::BulkString:
+        case data_type::BulkString:
+            parsers.emplace(std::move(std::make_shared<bulk_string_parser>()));
+            break;
         // case data_type::Null:
 
         default:
@@ -567,6 +574,55 @@ size_t LambdaSnail::resp::v2::simple_string_parser::parse(std::string_view value
     }
 
     return it - value.begin();
+}
+
+size_t LambdaSnail::resp::v2::bulk_string_parser::parse(std::string_view value, std::vector<data>& data_)
+{
+     ZoneScoped;
+
+     assert(not value.empty());
+
+     auto start = value.begin();
+
+     if (not size_parser.is_done())
+     {
+         std::vector<data> size_v{};
+         auto read = size_parser.parse(value, size_v);
+
+         // TODO: Error
+
+         if (size_parser.is_done())
+         {
+             assert(size_v.size() == 1);
+             size = std::get<int64_t>(size_v[0]);
+         }
+
+         // Fully read, no characters left in value, or
+         // Not fully read, consumed all characters
+         if (read == value.size())
+         {
+             return value.size();
+         }
+
+         // Fully read, characters left in value
+         std::advance(start, read);
+     }
+
+     auto it = start;
+     for (; it < value.end() and size > 0; ++it)
+     {
+         --size;
+     }
+
+     state += std::string_view(start, it);
+
+     if (size == 0)
+     {
+         is_fully_parsed = true;
+         data_.emplace_back(state);
+     }
+
+     return it - value.begin();
 }
 
 size_t LambdaSnail::resp::v2::array_parser::parse(std::string_view value, std::vector<data>& data_)
