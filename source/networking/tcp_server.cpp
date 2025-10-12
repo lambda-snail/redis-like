@@ -32,7 +32,7 @@ namespace LambdaSnail::networking
      */
     export struct server_options
     {
-        uint16_t port{ 6379 };
+        uint16_t port{ 9999 };
         uint32_t cleanup_interval_seconds{ 1024 };
         uint8_t num_databases{ 1 };
     };
@@ -66,6 +66,8 @@ asio::awaitable<void> connection(
 
     try
     {
+        std::string_view buffer_view;
+
         while (true)
         {
             LambdaSnail::resp::v2::parser parser{};
@@ -79,6 +81,7 @@ asio::awaitable<void> connection(
                 if (ec == asio::error::eof) [[unlikely]]
                 {
                     // We separate the handling of eof since it's not an error per se
+                    goto connection_done;
                     break;
                 }
                 if (ec) [[unlikely]]
@@ -88,10 +91,26 @@ asio::awaitable<void> connection(
                     break;
                 }
 
-                auto result = parser.add_buffer(std::string_view(buffer_info.buffer, n), data);
+                if (buffer_view.empty())
+                {
+                    buffer_view = std::string_view(buffer_info.buffer, n);
+                }
+
+                // TODO: Need ability to reset parser maybe?
+
+                auto result = parser.add_buffer(buffer_view, data);
                 if (result.has_value())
                 {
-                    // size_t read = result.value(); // TODO: Use when continuing to next command
+                    auto const read = result.value();
+                    if (read != n)
+                    {
+                        assert(n > read);
+                        assert(parser.is_done());
+
+                        buffer_view = std::string_view(buffer_info.buffer + read, n - read);
+                    }
+
+
                     // TODO: Handle errors
                 }
             }
@@ -101,6 +120,8 @@ asio::awaitable<void> connection(
             //std::string response = dispatch->process_command(resp_data);
 
             std::string response = dispatch->process_command(data);
+
+            // TODO: Serialization of response
 
             auto [ec_w, n_written] = co_await async_write(socket, asio::buffer(response, response.size()), asio::as_tuple(asio::use_awaitable));
             if (ec_w) [[unlikely]]
@@ -113,6 +134,9 @@ asio::awaitable<void> connection(
     {
         std::printf("echo Exception: %s\n", e.what());
     }
+
+connection_done:
+    logger->get_network_logger()->trace("Connection terminated");
 }
 
 asio::awaitable<void> listener(

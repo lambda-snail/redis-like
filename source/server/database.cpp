@@ -3,6 +3,7 @@ module;
 #include <atomic>
 #include <cassert>
 #include <charconv>
+#include <format>
 #include <functional>
 #include <future>
 #include <iomanip>
@@ -156,6 +157,38 @@ std::string LambdaSnail::server::echo_handler::execute(std::vector<LambdaSnail::
     auto const str = std::get<std::string>(args[1]); // args[1].materialize(resp::BulkString{});
     return "$" + std::to_string(str.size()) + resp_end + std::string(str.data(), str.size()) + resp_end;
 }
+std::string
+LambdaSnail::server::cmd_docs_handler::execute(std::vector<LambdaSnail::resp::v2::data> const& args) noexcept
+{
+    return ""
+        // "%2\r\n"
+        // "+Get\r\n"
+        // "%1\r\n"
+        // "+summary\r\n"
+        // "+Get values\r\n"
+        // "+Set\r\n"
+        // "%1\r\n"
+        // "+summary\r\n"
+        // "+Set values\r\n"
+
+       "%1\r\n"
+       "+Get\r\n"
+       "%1\r\n"
+       "+summary\r\n"
+       "+Get values\r\n"
+       // "+Set\r\n"
+       // "%1\r\n"
+       // "+summary\r\n"
+       // "+Set values\r\n"
+
+
+
+        // "*2\r\n"
+        // "$3\r\nGET\r\n"
+        // "$3\r\nSET\r\n"
+        // "$4\r\nECHO\r\n"
+    ;
+}
 
 LambdaSnail::server::static_response_handler::static_response_handler(std::string_view message) noexcept :
     m_message(message)
@@ -180,22 +213,22 @@ std::string LambdaSnail::server::get_handler::execute(std::vector<LambdaSnail::r
         {
             if (int64_t const* i = std::get_if<int64_t>(&value->data))
             {
-                return std::to_string(*i) + resp_end;
+                return std::format(":{}\r\n", *i);
             }
 
             if (std::string const* str = std::get_if<std::string>(&value->data))
             {
-                return *str + resp_end;
+                return std::format("${}\r\n{}\r\n", str->size(), *str);
             }
 
             if (double const* d = std::get_if<double>(&value->data))
             {
-                return std::to_string(*d) + resp_end;
+                return std::format(",{}\r\n", *d);
             }
 ;
             if (bool const* b = std::get_if<bool>(&value->data))
             {
-                return (*b ? "t" : "f") + resp_end;
+                return std::format("#{}\r\n", (*b ? "t" : "f"));
             }
         }
     }

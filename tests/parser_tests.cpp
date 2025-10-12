@@ -1,7 +1,8 @@
 #include <ranges>
 #include <variant>
 
-#include <gtest/gtest.h>
+#include "fuzztest/fuzztest.h"
+#include "gtest/gtest.h"
 
 import resp;
 
@@ -504,6 +505,35 @@ TEST(parserTests, TestNull_TwoPasses) {
     EXPECT_EQ(data_.size(), 1);
     EXPECT_EQ(std::get<LambdaSnail::resp::v2::Null>(data_[0]), LambdaSnail::resp::v2::Null{});
 }
+
+
+void ParseInput(std::string const& input)
+{
+    LambdaSnail::resp::v2::parser p;
+    std::vector<LambdaSnail::resp::v2::data> data_{};
+
+    auto const read = p.add_buffer(input, data_);
+
+    // If we have a value, then if we are done we must have data
+    EXPECT_TRUE(
+        not read.has_value() or
+        (not p.is_done() or data_.size() > 0)
+    );
+}
+
+FUZZ_TEST(ParserFuzzTests, ParseInput)
+    .WithDomains(fuzztest::InRegexp("[,#:_-][^\r\n]+\r\n"));
+
+FUZZ_TEST(ParserFuzzTests_BulkString, ParseInput)
+    .WithDomains(fuzztest::InRegexp("\\$[1-9][0-9]*\r\n.*\r\n"));
+
+FUZZ_TEST(ParserFuzzTests_NoCrash, ParseInput)
+    .WithDomains(fuzztest::Arbitrary<std::string>());
+
+
+
+
+
 
 namespace ArrayTests
 {

@@ -30,15 +30,14 @@ namespace LambdaSnail::server
         // TODO: Find a nicer way to handle this
         switch (command_name[0])
         {
+            case 'C': // COMMAND DOCS
+                return std::make_shared<cmd_docs_handler>();
             case 'P': // "PING"
                 return std::make_shared<ping_handler>();
-                break;
             case 'E': // "ECHO"
                 return std::make_shared<echo_handler>();
-                break;
             case 'G': // "GET"
                 return std::make_shared<get_handler>(m_server.get_database(m_current_db));
-                break;
             case 'S': //"SET" or "SELECT
                 if (command_name.size() > 3 and command_name[2] == 'L') // SELECT
                 {
@@ -49,7 +48,6 @@ namespace LambdaSnail::server
                 {
                     return std::make_shared<set_handler>(m_server.get_database(m_current_db));
                 }
-                break;
             default:
                 break;
         }
