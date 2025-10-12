@@ -10,6 +10,8 @@ module;
 #include <type_traits>
 #include <unordered_map>
 #include <utility>
+#include <variant>
+#include <vector>
 
 export module server;
 
@@ -33,7 +35,7 @@ namespace LambdaSnail::server
         typedef uint32_t version_t;
         typedef uint32_t flags_t;
 
-        std::string data;
+        LambdaSnail::resp::v2::data data;
         version_t version{};
         flags_t flags{};
         time_point_t ttl{time_point_t::min()};
@@ -47,27 +49,27 @@ namespace LambdaSnail::server
 
     struct ICommandHandler
     {
-        [[nodiscard]] virtual std::string execute(std::vector<resp::data_view> const& args) noexcept = 0;
+        [[nodiscard]] virtual std::string execute(std::vector<LambdaSnail::resp::v2::data> const& args) noexcept = 0;
         virtual ~ICommandHandler()                                                                   = default;
     };
 
     struct ping_handler final : public ICommandHandler
     {
-        [[nodiscard]] std::string execute(std::vector<resp::data_view> const& args) noexcept override;
+        [[nodiscard]] std::string execute(std::vector<LambdaSnail::resp::v2::data> const& args) noexcept override;
 
         ~ping_handler() override = default;
     };
 
     struct echo_handler final : public ICommandHandler
     {
-        [[nodiscard]] std::string execute(std::vector<resp::data_view> const& args) noexcept override;
+        [[nodiscard]] std::string execute(std::vector<LambdaSnail::resp::v2::data> const& args) noexcept override;
         ~echo_handler() override = default;
     };
 
     struct static_response_handler final : public ICommandHandler
     {
         explicit static_response_handler(std::string_view) noexcept;
-        [[nodiscard]] std::string execute(std::vector<resp::data_view> const& args) noexcept override;
+        [[nodiscard]] std::string execute(std::vector<LambdaSnail::resp::v2::data> const& args) noexcept override;
         ~static_response_handler() override = default;
 
     private:
@@ -77,7 +79,7 @@ namespace LambdaSnail::server
     struct get_handler final : public ICommandHandler
     {
         explicit get_handler(std::shared_ptr<class database> database) noexcept : m_database(std::move(database)) {}
-        [[nodiscard]] std::string execute(std::vector<resp::data_view> const& args) noexcept override;
+        [[nodiscard]] std::string execute(std::vector<LambdaSnail::resp::v2::data> const& args) noexcept override;
         ~get_handler() override = default;
 
     private:
@@ -88,7 +90,7 @@ namespace LambdaSnail::server
     {
         explicit set_handler(std::shared_ptr<database> database) : m_database(database) {}
 
-        [[nodiscard]] std::string execute(std::vector<resp::data_view> const& args) noexcept override;
+        [[nodiscard]] std::string execute(std::vector<LambdaSnail::resp::v2::data> const& args) noexcept override;
 
         ~set_handler() override = default;
 
@@ -104,7 +106,8 @@ namespace LambdaSnail::server
         // TODO: should probably return a variant or expected so we can return an error as well
         [[nodiscard]] std::shared_ptr<entry_info> get_value(std::string const& key);
 
-        void set_value(std::string const& key, std::string_view value, time_point_t ttl = time_point_t::min());
+        void set_value(std::string const& key, LambdaSnail::resp::v2::data value,
+                       time_point_t ttl = time_point_t::min());
 
         /**
          * Implements the active expiry by testing some random keys in the database among the
@@ -175,7 +178,7 @@ namespace LambdaSnail::server
     {
     public:
         explicit command_dispatch(server& server);
-        [[nodiscard]] std::string process_command(resp::data_view message);
+        [[nodiscard]] std::string process_command(std::vector<LambdaSnail::resp::v2::data> message);
 
         std::string handle_set_database(server::database_handle_t handle);
 
@@ -212,7 +215,7 @@ namespace LambdaSnail::server
     struct select_handler final : public ICommandHandler
     {
         explicit select_handler(command_dispatch& dispatch) noexcept : m_dispatch(dispatch) {}
-        [[nodiscard]] std::string execute(std::vector<resp::data_view> const& args) noexcept override;
+        [[nodiscard]] std::string execute(std::vector<LambdaSnail::resp::v2::data> const& args) noexcept override;
         ~select_handler() override = default;
 
     private:

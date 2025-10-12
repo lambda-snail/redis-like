@@ -57,18 +57,18 @@ namespace LambdaSnail::server
         return std::make_shared<static_response_handler>("Unknown command: " + std::string(command_name));
     }
 
-    std::string command_dispatch::process_command(resp::data_view message)
+    std::string command_dispatch::process_command(std::vector<LambdaSnail::resp::v2::data> request)
     {
         ZoneNamed(ProcessCommand, true);
 
-        auto const request = message.materialize(resp::Array{});
+        //auto const request = message.materialize(resp::Array{});
 
-        if (request.size() == 0 or request[0].type != LambdaSnail::resp::data_type::BulkString)
+        if (request.empty())
         {
             return {"-Unable to parse request\r\n"};
         }
 
-        auto const command_name = request[0].materialize(resp::BulkString{});
+        auto const command_name = std::get<std::string>(request[0]);
 
         auto command = get_command(command_name);
         return command->execute(request);
