@@ -98,7 +98,7 @@ TEST(parserTests, TestEmptyArray) {
     std::vector<LambdaSnail::resp::v2::data> data_{};
     auto const read = p.add_buffer({}, data_);
 
-    EXPECT_EQ(read, 0);
+    EXPECT_FALSE(read.has_value());
     EXPECT_EQ(data_.size(), 0);
 }
 
@@ -108,7 +108,8 @@ TEST(parserTests, TestArrayWithInteger) {
     std::vector<LambdaSnail::resp::v2::data> data_{};
     auto const read = p.add_buffer(":1234\r\n", data_);
 
-    EXPECT_EQ(read, 7);
+    EXPECT_TRUE(read.has_value());
+    EXPECT_EQ(read.value(), 7);
     EXPECT_EQ(data_.size(), 1);
     EXPECT_TRUE(p.is_done());
     EXPECT_EQ(std::get<int64_t>(data_[0]), 1234);
@@ -119,11 +120,13 @@ TEST(parserTests, TestArrayWithInteger_Continuation) {
 
     std::vector<LambdaSnail::resp::v2::data> data_{};
     auto read = p.add_buffer(":1234", data_);
-    EXPECT_EQ(read, 5);
+    EXPECT_TRUE(read.has_value());
+    EXPECT_EQ(read.value(), 5);
     EXPECT_FALSE(p.is_done());
 
     read = p.add_buffer("567\r\n", data_);
-    EXPECT_EQ(read, 5);
+    EXPECT_TRUE(read.has_value());
+    EXPECT_EQ(read.value(), 5);
 
     EXPECT_EQ(data_.size(), 1);
     EXPECT_TRUE(p.is_done());
@@ -135,15 +138,18 @@ TEST(parserTests, TestArrayWithInteger_TwoContinuations) {
 
     std::vector<LambdaSnail::resp::v2::data> data_{};
     auto read = p.add_buffer(":-1234", data_);
-    EXPECT_EQ(read, 6);
+    EXPECT_TRUE(read.has_value());
+    EXPECT_EQ(read.value(), 6);
     EXPECT_FALSE(p.is_done());
 
     read = p.add_buffer("567", data_);
-    EXPECT_EQ(read, 3);
+    EXPECT_TRUE(read.has_value());
+    EXPECT_EQ(read.value(), 3);
     EXPECT_FALSE(p.is_done());
 
     read = p.add_buffer("89\r\n", data_);
-    EXPECT_EQ(read, 4);
+    EXPECT_TRUE(read.has_value());
+    EXPECT_EQ(read.value(), 4);
 
     EXPECT_EQ(data_.size(), 1);
     EXPECT_TRUE(p.is_done());
@@ -156,7 +162,8 @@ TEST(parserTests, TestSimpleString_EmptyString) {
     std::vector<LambdaSnail::resp::v2::data> data_{};
     auto const read = p.add_buffer("+\r\n", data_);
 
-    EXPECT_EQ(read, 3);
+    EXPECT_TRUE(read.has_value());
+    EXPECT_EQ(read.value(), 3);
     EXPECT_TRUE(p.is_done());
     EXPECT_EQ(data_.size(), 1);
     EXPECT_TRUE(std::get<std::string>(data_[0]).empty());
@@ -168,7 +175,8 @@ TEST(parserTests, TestSimpleString_OnePass) {
     std::vector<LambdaSnail::resp::v2::data> data_{};
     auto const read = p.add_buffer("+Hello World\r\n", data_);
 
-    EXPECT_EQ(read, 14);
+    EXPECT_TRUE(read.has_value());
+    EXPECT_EQ(read.value(), 14);
     EXPECT_TRUE(p.is_done());
     EXPECT_EQ(data_.size(), 1);
     EXPECT_EQ(std::get<std::string>(data_[0]), "Hello World");
@@ -179,11 +187,13 @@ TEST(parserTests, TestSimpleString_TerminationInLastPass) {
 
     std::vector<LambdaSnail::resp::v2::data> data_{};
     auto read = p.add_buffer("+Hello World", data_);
-    EXPECT_EQ(read, 12);
+    EXPECT_TRUE(read.has_value());
+    EXPECT_EQ(read.value(), 12);
     EXPECT_FALSE(p.is_done());
 
     read = p.add_buffer("\r\n", data_);
-    EXPECT_EQ(read, 2);
+    EXPECT_TRUE(read.has_value());
+    EXPECT_EQ(read.value(), 2);
     EXPECT_TRUE(p.is_done());
 
     EXPECT_EQ(data_.size(), 1);
@@ -195,11 +205,13 @@ TEST(parserTests, TestSimpleString_TwoPasses) {
 
     std::vector<LambdaSnail::resp::v2::data> data_{};
     auto read = p.add_buffer("+Hello ", data_);
-    EXPECT_EQ(read, 7);
+    EXPECT_TRUE(read.has_value());
+    EXPECT_EQ(read.value(), 7);
     EXPECT_FALSE(p.is_done());
 
     read = p.add_buffer("World\r\n", data_);
-    EXPECT_EQ(read, 7);
+    EXPECT_TRUE(read.has_value());
+    EXPECT_EQ(read.value(), 7);
     EXPECT_TRUE(p.is_done());
 
     EXPECT_EQ(data_.size(), 1);
@@ -211,7 +223,8 @@ TEST(parserTests, TestMixedValues_StringAndInt_OnePass) {
 
     std::vector<LambdaSnail::resp::v2::data> data_{};
     auto read = p.add_buffer("*2\r\n+Hello World\r\n:1234\r\n", data_);
-    EXPECT_EQ(read, 25);
+    EXPECT_TRUE(read.has_value());
+    EXPECT_EQ(read.value(), 25);
     EXPECT_TRUE(p.is_done());
 
     EXPECT_EQ(data_.size(), 2);
@@ -224,8 +237,8 @@ TEST(parserTests, TestDouble_OnePass) {
 
     std::vector<LambdaSnail::resp::v2::data> data_{};
     auto const read = p.add_buffer(",10.92\r\n", data_);
-
-    EXPECT_EQ(read, 8);
+    EXPECT_TRUE(read.has_value());
+    EXPECT_EQ(read.value(), 8);
     EXPECT_TRUE(p.is_done());
     EXPECT_EQ(data_.size(), 1);
     EXPECT_DOUBLE_EQ(std::get<double>(data_[0]), 10.92);
@@ -236,8 +249,8 @@ TEST(parserTests, TestDouble_Negative) {
 
     std::vector<LambdaSnail::resp::v2::data> data_{};
     auto const read = p.add_buffer(",-10.92\r\n", data_);
-
-    EXPECT_EQ(read, 9);
+    EXPECT_TRUE(read.has_value());
+    EXPECT_EQ(read.value(), 9);
     EXPECT_TRUE(p.is_done());
     EXPECT_EQ(data_.size(), 1);
     EXPECT_DOUBLE_EQ(std::get<double>(data_[0]), -10.92);
@@ -248,11 +261,13 @@ TEST(parserTests, TestDouble_Split) {
 
     std::vector<LambdaSnail::resp::v2::data> data_{};
     auto read = p.add_buffer(",-10.", data_);
-    EXPECT_EQ(read, 5);
+    EXPECT_TRUE(read.has_value());
+    EXPECT_EQ(read.value(), 5);
     EXPECT_FALSE(p.is_done());
 
     read = p.add_buffer("92\r\n", data_);
-    EXPECT_EQ(read, 4);
+    EXPECT_TRUE(read.has_value());
+    EXPECT_EQ(read.value(), 4);
     EXPECT_TRUE(p.is_done());
     EXPECT_EQ(data_.size(), 1);
     EXPECT_DOUBLE_EQ(std::get<double>(data_[0]), -10.92);
@@ -263,11 +278,13 @@ TEST(parserTests, TestDouble_SplitEnding) {
 
     std::vector<LambdaSnail::resp::v2::data> data_{};
     auto read = p.add_buffer(",10.92\r", data_);
-    EXPECT_EQ(read, 7);
+    EXPECT_TRUE(read.has_value());
+    EXPECT_EQ(read.value(), 7);
     EXPECT_FALSE(p.is_done());
 
     read = p.add_buffer("\n", data_);
-    EXPECT_EQ(read, 1);
+    EXPECT_TRUE(read.has_value());
+    EXPECT_EQ(read.value(), 1);
     EXPECT_TRUE(p.is_done());
     EXPECT_EQ(data_.size(), 1);
     EXPECT_DOUBLE_EQ(std::get<double>(data_[0]), 10.92);
@@ -278,14 +295,16 @@ TEST(parserTests, TestDouble_NoDecimals) {
 
     std::vector<LambdaSnail::resp::v2::data> data_{};
     auto read = p.add_buffer(",10.\r\n", data_);
-    EXPECT_EQ(read, 6);
+    EXPECT_TRUE(read.has_value());
+    EXPECT_EQ(read.value(), 6);
     EXPECT_TRUE(p.is_done());
     EXPECT_EQ(data_.size(), 1);
     EXPECT_DOUBLE_EQ(std::get<double>(data_[0]), 10);
 
     data_.clear();
     read = p.add_buffer(",10\r\n", data_);
-    EXPECT_EQ(read, 5);
+    EXPECT_TRUE(read.has_value());
+    EXPECT_EQ(read.value(), 5);
     EXPECT_TRUE(p.is_done());
     EXPECT_EQ(data_.size(), 1);
     EXPECT_DOUBLE_EQ(std::get<double>(data_[0]), 10);
@@ -296,8 +315,8 @@ TEST(parserTests, TestBool_OnePass_True) {
 
     std::vector<LambdaSnail::resp::v2::data> data_{};
     auto const read = p.add_buffer("#True\r\n", data_);
-
-    EXPECT_EQ(read, 7);
+    EXPECT_TRUE(read.has_value());
+    EXPECT_EQ(read.value(), 7);
     EXPECT_TRUE(p.is_done());
     EXPECT_EQ(data_.size(), 1);
 EXPECT_TRUE(std::get<bool>(data_[0]));
@@ -308,8 +327,8 @@ TEST(parserTests, TestBool_OnePass_False) {
 
     std::vector<LambdaSnail::resp::v2::data> data_{};
     auto const read = p.add_buffer("#False\r\n", data_);
-
-    EXPECT_EQ(read, 8);
+    EXPECT_TRUE(read.has_value());
+    EXPECT_EQ(read.value(), 8);
     EXPECT_TRUE(p.is_done());
     EXPECT_EQ(data_.size(), 1);
 EXPECT_FALSE(std::get<bool>(data_[0]));
@@ -320,11 +339,13 @@ TEST(parserTests, TestBool_Split) {
 
     std::vector<LambdaSnail::resp::v2::data> data_{};
     auto read = p.add_buffer("#Tr", data_);
-    EXPECT_EQ(read, 3);
+    EXPECT_TRUE(read.has_value());
+    EXPECT_EQ(read.value(), 3);
     EXPECT_FALSE(p.is_done());
 
     read = p.add_buffer("ue\r\n", data_);
-    EXPECT_EQ(read, 4);
+    EXPECT_TRUE(read.has_value());
+    EXPECT_EQ(read.value(), 4);
     EXPECT_TRUE(p.is_done());
     EXPECT_EQ(data_.size(), 1);
     EXPECT_TRUE(std::get<bool>(data_[0]));
@@ -335,11 +356,13 @@ TEST(parserTests, TestBool_SplitEnding) {
 
     std::vector<LambdaSnail::resp::v2::data> data_{};
     auto read = p.add_buffer("#F\r", data_);
-    EXPECT_EQ(read, 3);
+    EXPECT_TRUE(read.has_value());
+    EXPECT_EQ(read.value(), 3);
     EXPECT_FALSE(p.is_done());
 
     read = p.add_buffer("\n", data_);
-    EXPECT_EQ(read, 1);
+    EXPECT_TRUE(read.has_value());
+    EXPECT_EQ(read.value(), 1);
     EXPECT_TRUE(p.is_done());
     EXPECT_EQ(data_.size(), 1);
     EXPECT_FALSE(std::get<bool>(data_[0]));
@@ -350,8 +373,8 @@ TEST(parserTests, TestBulkString_OnePass) {
 
     std::vector<LambdaSnail::resp::v2::data> data_{};
     auto const read = p.add_buffer("$12\r\nHello World!\r\n", data_);
-
-    EXPECT_EQ(read, 19);
+    EXPECT_TRUE(read.has_value());
+    EXPECT_EQ(read.value(), 19);
     EXPECT_TRUE(p.is_done());
     EXPECT_EQ(data_.size(), 1);
     EXPECT_EQ(std::get<std::string>(data_[0]), "Hello World!");
@@ -362,11 +385,13 @@ TEST(parserTests, TestBulkString_TwoPasses) {
 
     std::vector<LambdaSnail::resp::v2::data> data_{};
     auto read = p.add_buffer("$12\r\nHello ", data_);
-    EXPECT_EQ(read, 11);
+    EXPECT_TRUE(read.has_value());
+    EXPECT_EQ(read.value(), 11);
     EXPECT_FALSE(p.is_done());
 
     read = p.add_buffer("World!\r\n", data_);
-    EXPECT_EQ(read, 8);
+    EXPECT_TRUE(read.has_value());
+    EXPECT_EQ(read.value(), 8);
     EXPECT_TRUE(p.is_done());
 
     EXPECT_EQ(data_.size(), 1);
@@ -378,11 +403,13 @@ TEST(parserTests, TestBulkString_TwoPassesWithLineEnding) {
 
     std::vector<LambdaSnail::resp::v2::data> data_{};
     auto read = p.add_buffer("$13\r\nHello\r\n", data_); //13
-    EXPECT_EQ(read, 12);
+    EXPECT_TRUE(read.has_value());
+    EXPECT_EQ(read.value(), 12);
     EXPECT_FALSE(p.is_done());
 
     read = p.add_buffer("World!\r\n", data_);
-    EXPECT_EQ(read, 8);
+    EXPECT_TRUE(read.has_value());
+    EXPECT_EQ(read.value(), 8);
     EXPECT_TRUE(p.is_done());
 
     EXPECT_EQ(data_.size(), 1);
@@ -394,15 +421,18 @@ TEST(parserTests, TestBulkString_ThreePasses) {
 
     std::vector<LambdaSnail::resp::v2::data> data_{};
     auto read = p.add_buffer("$20\r\nHello\r", data_);
-    EXPECT_EQ(read, 11);
+    EXPECT_TRUE(read.has_value());
+    EXPECT_EQ(read.value(), 11);
     EXPECT_FALSE(p.is_done());
 
     read = p.add_buffer("\nSanta", data_);
-    EXPECT_EQ(read, 6);
+    EXPECT_TRUE(read.has_value());
+    EXPECT_EQ(read.value(), 6);
     EXPECT_FALSE(p.is_done());
 
     read = p.add_buffer(" Clause!\r\n", data_);
-    EXPECT_EQ(read, 10);
+    EXPECT_TRUE(read.has_value());
+    EXPECT_EQ(read.value(), 10);
     EXPECT_TRUE(p.is_done());
 
     EXPECT_EQ(data_.size(), 1);
@@ -414,11 +444,13 @@ TEST(parserTests, TestBulkString_SplitEnding) {
 
     std::vector<LambdaSnail::resp::v2::data> data_{};
     auto read = p.add_buffer("$13\r\nHello\r\nWorld!\r", data_);
-    EXPECT_EQ(read, 19);
+    EXPECT_TRUE(read.has_value());
+    EXPECT_EQ(read.value(), 19);
     EXPECT_FALSE(p.is_done());
 
     read = p.add_buffer("\n", data_);
-    EXPECT_EQ(read, 1);
+    EXPECT_TRUE(read.has_value());
+    EXPECT_EQ(read.value(), 1);
     EXPECT_TRUE(p.is_done());
 
     EXPECT_EQ(data_.size(), 1);
@@ -430,11 +462,13 @@ TEST(parserTests, TestBulkString_SplitBeginning) {
 
     std::vector<LambdaSnail::resp::v2::data> data_{};
     auto read = p.add_buffer("$13\r", data_);
-    EXPECT_EQ(read, 4);
+    EXPECT_TRUE(read.has_value());
+    EXPECT_EQ(read.value(), 4);
     EXPECT_FALSE(p.is_done());
 
     read = p.add_buffer("\nHello\r\nWorld!\r\n", data_);
-    EXPECT_EQ(read, 16);
+    EXPECT_TRUE(read.has_value());
+    EXPECT_EQ(read.value(), 16);
     EXPECT_TRUE(p.is_done());
 
     EXPECT_EQ(data_.size(), 1);
@@ -446,8 +480,8 @@ TEST(parserTests, TestNull_OnePass) {
 
     std::vector<LambdaSnail::resp::v2::data> data_{};
     auto const read = p.add_buffer("_\r\n", data_);
-
-    EXPECT_EQ(read, 3);
+    EXPECT_TRUE(read.has_value());
+    EXPECT_EQ(read.value(), 3);
     EXPECT_TRUE(p.is_done());
     EXPECT_EQ(data_.size(), 1);
     EXPECT_EQ(std::get<LambdaSnail::resp::v2::Null>(data_[0]), LambdaSnail::resp::v2::Null{});
@@ -458,11 +492,13 @@ TEST(parserTests, TestNull_TwoPasses) {
 
     std::vector<LambdaSnail::resp::v2::data> data_{};
     auto read = p.add_buffer("_\r", data_);
-    EXPECT_EQ(read, 2);
+    EXPECT_TRUE(read.has_value());
+    EXPECT_EQ(read.value(), 2);
     EXPECT_FALSE(p.is_done());
 
     read = p.add_buffer("\n", data_);
-    EXPECT_EQ(read, 1);
+    EXPECT_TRUE(read.has_value());
+    EXPECT_EQ(read.value(), 1);
     EXPECT_TRUE(p.is_done());
 
     EXPECT_EQ(data_.size(), 1);
