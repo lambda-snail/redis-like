@@ -134,7 +134,7 @@ namespace LambdaSnail::resp::v2
 {
     export struct Null
     {
-        bool operator==(Null const& other) const { return true; }
+        bool operator==(Null const&) const { return true; }
     };
 
     export typedef std::variant<int64_t, std::string, double, bool, Null> data;
@@ -144,7 +144,6 @@ namespace LambdaSnail::resp::v2
     public:
         explicit stateful_parser(char const prefix) : prefix_(prefix) {}
 
-        //[[nodiscard]] virtual data get_value() const = 0;
         [[nodiscard]] virtual bool is_done() const { return is_fully_parsed; }
         [[nodiscard]] virtual size_t parse(std::string_view value, std::vector<data>& data_) = 0;
 
@@ -195,6 +194,14 @@ namespace LambdaSnail::resp::v2
         [[nodiscard]] size_t parse(std::string_view value, std::vector<data>& data_) override;
     private:
         bool state { false };
+    };
+
+    class null_parser : public stateful_parser
+    {
+    public:
+        explicit null_parser() : stateful_parser(static_cast<char>(data_type::Null)) {}
+
+        [[nodiscard]] size_t parse(std::string_view value, std::vector<data>& data_) override;
     };
 
     class simple_string_parser final : public stateful_parser
@@ -338,9 +345,11 @@ void LambdaSnail::resp::v2::parser::add_parser(std::string_view::const_iterator 
         case data_type::BulkString:
             parsers.emplace(std::move(std::make_shared<bulk_string_parser>()));
             break;
-        // case data_type::Null:
-
+        case data_type::Null:
+            parsers.emplace(std::move(std::make_shared<null_parser>()));
+            break;
         default:
+            // Todo: error message
             std::unreachable();
     }
 }
@@ -533,6 +542,42 @@ size_t LambdaSnail::resp::v2::boolean_parser::parse(std::string_view value, std:
     if (is_fully_parsed)
     {
         data_.emplace_back(state);
+    }
+
+    return start - value.begin();
+}
+
+size_t LambdaSnail::resp::v2::null_parser::parse(std::string_view value, std::vector<data>& data_)
+{
+    ZoneScoped;
+
+    assert(not value.empty());
+
+    auto start = value.begin();
+    if (*start == prefix_)
+    {
+        ++start;
+    }
+
+    // Now we simply need to find the end of the value
+    for (; start != value.end(); ++start)
+    {
+        if (*start == '\r')
+        {
+            continue;
+        }
+
+        if (*start == '\n')
+        {
+            ++start;
+            is_fully_parsed = true;
+            break;
+        }
+    }
+
+    if (is_fully_parsed)
+    {
+        data_.emplace_back(Null{});
     }
 
     return start - value.begin();

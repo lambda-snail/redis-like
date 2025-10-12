@@ -441,6 +441,34 @@ TEST(parserTests, TestBulkString_SplitBeginning) {
     EXPECT_EQ(std::get<std::string>(data_[0]), "Hello\r\nWorld!");
 }
 
+TEST(parserTests, TestNull_OnePass) {
+    LambdaSnail::resp::v2::parser p;
+
+    std::vector<LambdaSnail::resp::v2::data> data_{};
+    auto const read = p.add_buffer("_\r\n", data_);
+
+    EXPECT_EQ(read, 3);
+    EXPECT_TRUE(p.is_done());
+    EXPECT_EQ(data_.size(), 1);
+    EXPECT_EQ(std::get<LambdaSnail::resp::v2::Null>(data_[0]), LambdaSnail::resp::v2::Null{});
+}
+
+TEST(parserTests, TestNull_TwoPasses) {
+    LambdaSnail::resp::v2::parser p;
+
+    std::vector<LambdaSnail::resp::v2::data> data_{};
+    auto read = p.add_buffer("_\r", data_);
+    EXPECT_EQ(read, 2);
+    EXPECT_FALSE(p.is_done());
+
+    read = p.add_buffer("\n", data_);
+    EXPECT_EQ(read, 1);
+    EXPECT_TRUE(p.is_done());
+
+    EXPECT_EQ(data_.size(), 1);
+    EXPECT_EQ(std::get<LambdaSnail::resp::v2::Null>(data_[0]), LambdaSnail::resp::v2::Null{});
+}
+
 namespace ArrayTests
 {
     template<typename T>
