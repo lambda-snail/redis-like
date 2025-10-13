@@ -4,6 +4,7 @@ module;
 #include <cmath>
 #include <expected>
 #include <format>
+#include <memory_resource>
 #include <stack>
 #include <string>
 #include <system_error>
@@ -272,7 +273,11 @@ namespace LambdaSnail::resp::v2
         size_t m_num_elements { 1 };
         bool m_is_done { false };
 
-        std::stack<std::shared_ptr<stateful_parser>> m_parsers {};
+        std::pmr::unsynchronized_pool_resource m_buffer{ std::pmr::pool_options { 1, 128 } };
+        std::pmr::polymorphic_allocator<stateful_parser> m_allocator{ &m_buffer };
+
+        std::shared_ptr<stateful_parser> m_current_parser{};
+
         std::error_code add_parser(std::string_view::const_iterator start);
     };
 
@@ -307,7 +312,7 @@ profile_constexpr std::expected<size_t, std::error_code> LambdaSnail::resp::v2::
     auto it = buffer.begin();
     while (it != buffer.end() and not m_is_done)
     {
-        if (m_parsers.empty())
+        if (not m_current_parser)
         {
             auto ec = add_parser(it);
             if (ec)
@@ -316,20 +321,17 @@ profile_constexpr std::expected<size_t, std::error_code> LambdaSnail::resp::v2::
             }
         }
 
-        assert(not m_parsers.empty());
-
-        auto const& current_parser  = m_parsers.top();
-        auto const result           = current_parser->parse(std::string_view(it, buffer.end()), data_);
+        auto const result           = m_current_parser->parse(std::string_view(it, buffer.end()), data_);
         if (not result.has_value())
         {
             return std::unexpected(result.error());
         }
 
         auto const num         = result.value();
-        auto const all_parsed  = current_parser->is_done();
+        auto const all_parsed  = m_current_parser->is_done();
         if (all_parsed)
         {
-            m_parsers.pop();
+            m_current_parser.reset();
         }
 
         std::advance(it, num);
@@ -345,25 +347,25 @@ std::error_code LambdaSnail::resp::v2::parser::add_parser(std::string_view::cons
     switch (static_cast<data_type>(*start))
     {
         case data_type::Integer:
-            m_parsers.emplace(std::move(std::make_shared<int_parser>()));
+            m_current_parser = std::allocate_shared<int_parser>(m_allocator);
             break;
         case data_type::SimpleString:
-            m_parsers.emplace(std::move(std::make_shared<simple_string_parser>()));
+            m_current_parser = std::allocate_shared<simple_string_parser>(m_allocator);
             break;
         case data_type::Array:
-            m_parsers.emplace(std::move(std::make_shared<array_parser>(*this)));
+            m_current_parser = std::allocate_shared<array_parser>(m_allocator, *this);
             break;
         case data_type::Boolean:
-            m_parsers.emplace(std::move(std::make_shared<boolean_parser>()));
+            m_current_parser = std::allocate_shared<boolean_parser>(m_allocator);
             break;
         case data_type::Double:
-            m_parsers.emplace(std::move(std::make_shared<double_parser>()));
+            m_current_parser = std::allocate_shared<double_parser>(m_allocator);
             break;
         case data_type::BulkString:
-            m_parsers.emplace(std::move(std::make_shared<bulk_string_parser>()));
+            m_current_parser = std::allocate_shared<bulk_string_parser>(m_allocator);
             break;
         case data_type::Null:
-            m_parsers.emplace(std::move(std::make_shared<null_parser>()));
+            m_current_parser = std::allocate_shared<null_parser>(m_allocator);
             break;
         default:
             return parse_errc::UnknownRespType;
@@ -731,9 +733,6 @@ std::expected<size_t, std::error_code> LambdaSnail::resp::v2::bulk_string_parser
         --m_size;
     }
 
-    //m_state += std::string_view(start, it);
-    //std::copy(start, it, m_state.end());
-
     if (m_size > 0)
     {
         return it - value.begin();
@@ -767,10 +766,7 @@ void LambdaSnail::resp::v2::parser::reset()
 {
     m_num_elements = 1;
     m_is_done = false;
-    while (not m_parsers.empty())
-    {
-        m_parsers.pop();
-    }
+    m_current_parser.reset();
 }
 
 std::expected<size_t, std::error_code> LambdaSnail::resp::v2::array_parser::parse(std::string_view value,
