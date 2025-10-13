@@ -67,14 +67,16 @@ asio::awaitable<void> connection(
     try
     {
         std::string_view buffer_view;
+        LambdaSnail::resp::v2::parser parser{};
+        std::vector<LambdaSnail::resp::v2::data> data;
 
         while (true)
         {
-            LambdaSnail::resp::v2::parser parser{};
-            std::vector<LambdaSnail::resp::v2::data> data;
-
             do
             {
+                parser.reset();
+                data.clear();
+
                 auto [ec, n] = co_await socket.async_read_some(
                                 asio::buffer(buffer_info.buffer, buffer_info.size),
                                 asio::as_tuple(asio::use_awaitable));
@@ -96,8 +98,6 @@ asio::awaitable<void> connection(
                     buffer_view = std::string_view(buffer_info.buffer, n);
                 }
 
-                // TODO: Need ability to reset parser maybe?
-
                 auto result = parser.add_buffer(buffer_view, data);
                 if (result.has_value())
                 {
@@ -110,18 +110,12 @@ asio::awaitable<void> connection(
                         buffer_view = std::string_view(buffer_info.buffer + read, n - read);
                     }
 
-
                     // TODO: Handle errors
                 }
             }
             while (not parser.is_done());
 
-            //LambdaSnail::resp::data_view const resp_data(std::string_view(buffer_info.buffer, n));
-            //std::string response = dispatch->process_command(resp_data);
-
             std::string response = dispatch->process_command(data);
-
-            // TODO: Serialization of response
 
             auto [ec_w, n_written] = co_await async_write(socket, asio::buffer(response, response.size()), asio::as_tuple(asio::use_awaitable));
             if (ec_w) [[unlikely]]

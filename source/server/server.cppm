@@ -66,12 +66,6 @@ namespace LambdaSnail::server
         ~echo_handler() override = default;
     };
 
-    struct cmd_docs_handler final : public ICommandHandler
-    {
-        [[nodiscard]] std::string execute(std::vector<LambdaSnail::resp::v2::data> const& args) noexcept override;
-        ~cmd_docs_handler() override = default;
-    };
-
     struct static_response_handler final : public ICommandHandler
     {
         explicit static_response_handler(std::string_view) noexcept;

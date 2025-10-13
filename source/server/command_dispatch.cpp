@@ -30,8 +30,12 @@ namespace LambdaSnail::server
         // TODO: Find a nicer way to handle this
         switch (command_name[0])
         {
-            case 'C': // COMMAND DOCS
-                return std::make_shared<cmd_docs_handler>();
+            // case 'C': // COMMAND DOCS or CONFIG
+            //     if (command_name.size() >= 3 and command_name[1] == 'O' and command_name[2] == 'M')
+            //     {
+            //         return std::make_shared<cmd_docs_handler>();
+            //     }
+            //     break;
             case 'P': // "PING"
                 return std::make_shared<ping_handler>();
             case 'E': // "ECHO"

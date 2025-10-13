@@ -327,22 +327,16 @@ namespace LambdaSnail::resp::v2
     public:
         [[nodiscard]] profile_constexpr std::expected<size_t, std::error_code> add_buffer(std::string_view buffer, std::vector<data>& data_);
 
+        void reset();
         [[nodiscard]] inline bool is_done() const { return is_done_; };
 
         void set_expected_num_elements(size_t num) { num_elements = num; };
 
     private:
-        struct parse_result
-        {
-            bool is_done{false};
-            size_t num_read{0};
-        };
-
         size_t num_elements { 1 };
         bool is_done_ { false };
 
         std::stack<std::shared_ptr<stateful_parser>> parsers {};
-        // std::shared_ptr<stateful_parser> current_parser {};
         std::error_code add_parser(std::string_view::const_iterator start);
     };
 
@@ -375,7 +369,7 @@ profile_constexpr std::expected<size_t, std::error_code> LambdaSnail::resp::v2::
     }
 
     auto it = buffer.begin();
-    while (it != buffer.end())
+    while (it != buffer.end() and not is_done_)
     {
         if (parsers.empty())
         {
@@ -389,7 +383,7 @@ profile_constexpr std::expected<size_t, std::error_code> LambdaSnail::resp::v2::
         assert(not parsers.empty());
 
         auto const& current_parser  = parsers.top();
-        auto const result               = current_parser->parse(std::string_view(it, buffer.end()), data_);
+        auto const result           = current_parser->parse(std::string_view(it, buffer.end()), data_);
         if (not result.has_value())
         {
             return std::unexpected(result.error());
@@ -403,9 +397,9 @@ profile_constexpr std::expected<size_t, std::error_code> LambdaSnail::resp::v2::
         }
 
         std::advance(it, num);
-    }
 
-    is_done_ = data_.size() == num_elements;
+        is_done_ = data_.size() == num_elements;
+    }
 
     return it - buffer.begin();
 }
@@ -823,6 +817,16 @@ std::expected<size_t, std::error_code> LambdaSnail::resp::v2::bulk_string_parser
     }
 
     return it - value.begin();
+}
+
+void LambdaSnail::resp::v2::parser::reset()
+{
+    num_elements = 1;
+    is_done_ = false;
+    while (not parsers.empty())
+    {
+        parsers.pop();
+    }
 }
 
 std::expected<size_t, std::error_code> LambdaSnail::resp::v2::array_parser::parse(std::string_view value,

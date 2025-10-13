@@ -6,93 +6,6 @@
 
 import resp;
 
-// namespace ParseValidTests
-// {
-//     template<typename T>
-//     struct RespStringTestFixture : public testing::Test {};//WithParam<char const*>
-//     // {
-//     //     using Type = RespType;
-//     // };
-//
-//     struct TestInt
-//     {
-//         char const* data = ":1234\r\n";
-//         int64_t expected = 1234;
-//         LambdaSnail::resp::Integer type;
-//     };
-//
-//     struct TestNegativeInt
-//     {
-//         char const* data = ":-1234\r\n";
-//         int64_t expected = -1234;
-//         LambdaSnail::resp::Integer type;
-//     };
-//
-//     struct TestDouble
-//     {
-//         char const* data = ",1.234\r\n";
-//         double expected = 1.234;
-//         LambdaSnail::resp::Double type;
-//     };
-//
-//     struct TestNegativeDouble
-//     {
-//         char const* data = ",-1.234\r\n";
-//         double expected = -1.234;
-//         LambdaSnail::resp::Double type;
-//     };
-//
-//     struct TestBool
-//     {
-//         char const* data = "#T\r\n";
-//         bool expected = true;
-//         LambdaSnail::resp::Boolean type;
-//     };
-//
-//     struct TestSimpleString
-//     {
-//         char const* data = "+INCR\r\n";
-//         std::string expected = "INCR";
-//         LambdaSnail::resp::SimpleString type;
-//     };
-//
-//     struct TestBulkString
-//     {
-//         char const* data = "$4\r\nINCR\r\n";
-//         std::string expected = "INCR";
-//         LambdaSnail::resp::BulkString type;
-//     };
-//
-//     struct TestBulkStringWithLineEndings
-//     {
-//         char const* data = "$20\r\nINCR\r\nThe other line\r\n";
-//         std::string expected = "INCR\r\nThe other line";
-//         LambdaSnail::resp::BulkString type;
-//     };
-//
-//     TYPED_TEST_SUITE_P(RespStringTestFixture);
-//
-//     TYPED_TEST_P(RespStringTestFixture, TestMaterializeValidResp)
-//     {
-//         TypeParam test_data;
-//         LambdaSnail::resp::data_view view(test_data.data);
-//         auto value = view.materialize(test_data.type);
-//         ASSERT_TRUE(value == test_data.expected);
-//     }
-//
-//     REGISTER_TYPED_TEST_SUITE_P(RespStringTestFixture, TestMaterializeValidResp);
-//
-//     using ValidRespStringTest_Types = ::testing::Types<
-//         TestInt, TestNegativeInt,
-//         TestDouble, TestNegativeDouble,
-//         TestBool,
-//         TestSimpleString, TestBulkString, TestBulkStringWithLineEndings
-//     >;
-//
-//     INSTANTIATE_TYPED_TEST_SUITE_P(TestMaterializeValidResp,RespStringTestFixture,ValidRespStringTest_Types);
-// }
-
-
 TEST(parserTests, TestEmptyArray) {
     LambdaSnail::resp::v2::parser p;
 
@@ -101,6 +14,50 @@ TEST(parserTests, TestEmptyArray) {
 
     EXPECT_FALSE(read.has_value());
     EXPECT_EQ(data_.size(), 0);
+}
+
+TEST(parserTests, TestArray_TwoMessages) {
+    LambdaSnail::resp::v2::parser p;
+
+    std::string message =
+        "*3\r\n"
+        "$6\r\n"
+        "CONFIG\r\n"
+        "$3\r\n"
+        "GET\r\n"
+        "$4\r\n"
+        "save\r\n"
+        "*3\r\n"
+        "$6\r\n"
+        "CONFIG\r\n"
+        "$3\r\n"
+        "GET\r\n"
+        "$10\r\n"
+        "appendonly\r\n"
+    ;
+
+    std::vector<LambdaSnail::resp::v2::data> data_{};
+    auto read = p.add_buffer(std::string_view(message.begin(), message.end()), data_);
+
+    EXPECT_TRUE(read.has_value());
+    EXPECT_TRUE(p.is_done());
+    EXPECT_EQ(data_.size(), 3);
+    EXPECT_EQ(std::get<std::string>(data_[0]), "CONFIG");
+    EXPECT_EQ(std::get<std::string>(data_[1]), "GET");
+    EXPECT_EQ(std::get<std::string>(data_[2]), "save");
+
+    p.reset();
+    data_.clear();
+
+    auto it = message.begin(); std::advance(it, read.value());
+    read = p.add_buffer(std::string_view(it, message.end()), data_);
+
+    EXPECT_TRUE(read.has_value());
+    EXPECT_TRUE(p.is_done());
+    EXPECT_EQ(data_.size(), 3);
+    EXPECT_EQ(std::get<std::string>(data_[0]), "CONFIG");
+    EXPECT_EQ(std::get<std::string>(data_[1]), "GET");
+    EXPECT_EQ(std::get<std::string>(data_[2]), "appendonly");
 }
 
 TEST(parserTests, TestArrayWithInteger) {
@@ -303,6 +260,8 @@ TEST(parserTests, TestDouble_NoDecimals) {
     EXPECT_DOUBLE_EQ(std::get<double>(data_[0]), 10);
 
     data_.clear();
+    p.reset();
+
     read = p.add_buffer(",10\r\n", data_);
     EXPECT_TRUE(read.has_value());
     EXPECT_EQ(read.value(), 5);
@@ -332,7 +291,7 @@ TEST(parserTests, TestBool_OnePass_False) {
     EXPECT_EQ(read.value(), 8);
     EXPECT_TRUE(p.is_done());
     EXPECT_EQ(data_.size(), 1);
-EXPECT_FALSE(std::get<bool>(data_[0]));
+    EXPECT_FALSE(std::get<bool>(data_[0]));
 }
 
 TEST(parserTests, TestBool_Split) {

@@ -157,38 +157,6 @@ std::string LambdaSnail::server::echo_handler::execute(std::vector<LambdaSnail::
     auto const str = std::get<std::string>(args[1]); // args[1].materialize(resp::BulkString{});
     return "$" + std::to_string(str.size()) + resp_end + std::string(str.data(), str.size()) + resp_end;
 }
-std::string
-LambdaSnail::server::cmd_docs_handler::execute(std::vector<LambdaSnail::resp::v2::data> const& args) noexcept
-{
-    return ""
-        // "%2\r\n"
-        // "+Get\r\n"
-        // "%1\r\n"
-        // "+summary\r\n"
-        // "+Get values\r\n"
-        // "+Set\r\n"
-        // "%1\r\n"
-        // "+summary\r\n"
-        // "+Set values\r\n"
-
-       "%1\r\n"
-       "+Get\r\n"
-       "%1\r\n"
-       "+summary\r\n"
-       "+Get values\r\n"
-       // "+Set\r\n"
-       // "%1\r\n"
-       // "+summary\r\n"
-       // "+Set values\r\n"
-
-
-
-        // "*2\r\n"
-        // "$3\r\nGET\r\n"
-        // "$3\r\nSET\r\n"
-        // "$4\r\nECHO\r\n"
-    ;
-}
 
 LambdaSnail::server::static_response_handler::static_response_handler(std::string_view message) noexcept :
     m_message(message)
