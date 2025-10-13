@@ -444,7 +444,7 @@ TEST(parserTests, TestNull_OnePass) {
     EXPECT_EQ(read.value(), 3);
     EXPECT_TRUE(p.is_done());
     EXPECT_EQ(data_.size(), 1);
-    EXPECT_EQ(std::get<LambdaSnail::resp::v2::Null>(data_[0]), LambdaSnail::resp::v2::Null{});
+    EXPECT_EQ(std::get<LambdaSnail::resp::v2::null>(data_[0]), LambdaSnail::resp::v2::null{});
 }
 
 TEST(parserTests, TestNull_TwoPasses) {
@@ -462,7 +462,7 @@ TEST(parserTests, TestNull_TwoPasses) {
     EXPECT_TRUE(p.is_done());
 
     EXPECT_EQ(data_.size(), 1);
-    EXPECT_EQ(std::get<LambdaSnail::resp::v2::Null>(data_[0]), LambdaSnail::resp::v2::Null{});
+    EXPECT_EQ(std::get<LambdaSnail::resp::v2::null>(data_[0]), LambdaSnail::resp::v2::null{});
 }
 
 

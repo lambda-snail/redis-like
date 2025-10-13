@@ -135,27 +135,27 @@ namespace LambdaSnail::resp::v2
         return {static_cast<int>(e), parse_errc_category()};
     }
 
-    export struct Null
+    export struct null
     {
-        bool operator==(Null const&) const { return true; }
+        bool operator==(null const&) const { return true; }
     };
 
-    export typedef std::variant<int64_t, std::string, double, bool, Null> data;
+    export typedef std::variant<int64_t, std::string, double, bool, null> data;
 
     class stateful_parser
     {
     public:
-        explicit stateful_parser(char const prefix) : prefix_(prefix) {}
+        explicit stateful_parser(char const prefix) : m_prefix(prefix) {}
 
-        [[nodiscard]] virtual bool is_done() const { return is_fully_parsed; }
+        [[nodiscard]] virtual bool is_done() const { return m_is_fully_parsed; }
         [[nodiscard]] virtual std::expected<size_t, std::error_code> parse(std::string_view value,
                                                                            std::vector<data>& data_) = 0;
 
         virtual ~stateful_parser() = default;
 
     protected:
-        char const prefix_;
-        bool is_fully_parsed { false };
+        char const m_prefix;
+        bool m_is_fully_parsed { false };
     };
 
     class int_parser : public stateful_parser
@@ -172,8 +172,8 @@ namespace LambdaSnail::resp::v2
         // int_parser& operator=(int_parser const&) const = delete;
         // int_parser& operator=(int_parser const&&) = delete;
     private:
-        int64_t state {}; // Intermediate or fully parsed value
-        bool is_negative { false };
+        int64_t m_state {}; // Intermediate or fully parsed value
+        bool m_is_negative { false };
     };
 
     class double_parser : public stateful_parser
@@ -185,11 +185,11 @@ namespace LambdaSnail::resp::v2
                                                                    std::vector<data>& data_) override;
 
     private:
-        double state {};
-        double fraction {};
-        double power { 1 };
-        bool is_fraction { false };
-        bool is_negative { false };
+        double m_state {};
+        double m_fraction {};
+        double m_power { 1 };
+        bool m_is_fraction { false };
+        bool m_is_negative { false };
     };
 
     class boolean_parser : public stateful_parser
@@ -200,7 +200,7 @@ namespace LambdaSnail::resp::v2
         [[nodiscard]] std::expected<size_t, std::error_code> parse(std::string_view value,
                                                                    std::vector<data>& data_) override;
     private:
-        bool state { false };
+        bool m_state { false };
     };
 
     class null_parser : public stateful_parser
@@ -221,7 +221,7 @@ namespace LambdaSnail::resp::v2
                                                                    std::vector<data>& data_) override;
 
     private:
-        std::string state {};
+        std::string m_state {};
     };
 
     class bulk_string_parser final : public stateful_parser
@@ -229,20 +229,20 @@ namespace LambdaSnail::resp::v2
     public:
         explicit bulk_string_parser() :
             stateful_parser(static_cast<char>(data_type::BulkString)),
-            size_parser(static_cast<char>(data_type::BulkString)) {}
+            m_size_parser(static_cast<char>(data_type::BulkString)) {}
 
         [[nodiscard]] std::expected<size_t, std::error_code> parse(std::string_view value,
                                                                    std::vector<data>& data_) override;
 
     private:
 
-        int_parser size_parser;
+        int_parser m_size_parser;
 
-        size_t parsed_line_ending { resp_end.size() };
-        size_t size { 0 };
-        std::string state {};
+        size_t m_parsed_line_ending { resp_end.size() };
+        size_t m_size { 0 };
+        std::string m_state {};
 
-        int_parser num_parser = int_parser(static_cast<char>(data_type::BulkString));
+        int_parser m_num_parser = int_parser(static_cast<char>(data_type::BulkString));
     };
 
     /**
@@ -262,15 +262,15 @@ namespace LambdaSnail::resp::v2
         [[nodiscard]] profile_constexpr std::expected<size_t, std::error_code> add_buffer(std::string_view buffer, std::vector<data>& data_);
 
         void reset();
-        [[nodiscard]] inline bool is_done() const { return is_done_; };
+        [[nodiscard]] inline bool is_done() const { return m_is_done; };
 
-        void set_expected_num_elements(size_t num) { num_elements = num; };
+        void set_expected_num_elements(size_t num) { m_num_elements = num; };
 
     private:
-        size_t num_elements { 1 };
-        bool is_done_ { false };
+        size_t m_num_elements { 1 };
+        bool m_is_done { false };
 
-        std::stack<std::shared_ptr<stateful_parser>> parsers {};
+        std::stack<std::shared_ptr<stateful_parser>> m_parsers {};
         std::error_code add_parser(std::string_view::const_iterator start);
     };
 
@@ -284,13 +284,13 @@ namespace LambdaSnail::resp::v2
     class array_parser final : public int_parser
     {
     public:
-        explicit array_parser(parser& parser) : int_parser(static_cast<char>(data_type::Array)), parser_(parser) {}
+        explicit array_parser(parser& parser) : int_parser(static_cast<char>(data_type::Array)), m_parser(parser) {}
 
         [[nodiscard]] std::expected<size_t, std::error_code> parse(std::string_view value,
                                                                    std::vector<data>& data_) override;
 
     private:
-        parser& parser_;
+        parser& m_parser;
     };
 
 } // namespace LambdaSnail::resp::v2
@@ -303,9 +303,9 @@ profile_constexpr std::expected<size_t, std::error_code> LambdaSnail::resp::v2::
     }
 
     auto it = buffer.begin();
-    while (it != buffer.end() and not is_done_)
+    while (it != buffer.end() and not m_is_done)
     {
-        if (parsers.empty())
+        if (m_parsers.empty())
         {
             auto ec = add_parser(it);
             if (ec)
@@ -316,7 +316,7 @@ profile_constexpr std::expected<size_t, std::error_code> LambdaSnail::resp::v2::
 
         assert(not parsers.empty());
 
-        auto const& current_parser  = parsers.top();
+        auto const& current_parser  = m_parsers.top();
         auto const result           = current_parser->parse(std::string_view(it, buffer.end()), data_);
         if (not result.has_value())
         {
@@ -327,12 +327,12 @@ profile_constexpr std::expected<size_t, std::error_code> LambdaSnail::resp::v2::
         auto const all_parsed  = current_parser->is_done();
         if (all_parsed)
         {
-            parsers.pop();
+            m_parsers.pop();
         }
 
         std::advance(it, num);
 
-        is_done_ = data_.size() == num_elements;
+        m_is_done = data_.size() == m_num_elements;
     }
 
     return it - buffer.begin();
@@ -343,25 +343,25 @@ std::error_code LambdaSnail::resp::v2::parser::add_parser(std::string_view::cons
     switch (static_cast<data_type>(*start))
     {
         case data_type::Integer:
-            parsers.emplace(std::move(std::make_shared<int_parser>()));
+            m_parsers.emplace(std::move(std::make_shared<int_parser>()));
             break;
         case data_type::SimpleString:
-            parsers.emplace(std::move(std::make_shared<simple_string_parser>()));
+            m_parsers.emplace(std::move(std::make_shared<simple_string_parser>()));
             break;
         case data_type::Array:
-            parsers.emplace(std::move(std::make_shared<array_parser>(*this)));
+            m_parsers.emplace(std::move(std::make_shared<array_parser>(*this)));
             break;
         case data_type::Boolean:
-            parsers.emplace(std::move(std::make_shared<boolean_parser>()));
+            m_parsers.emplace(std::move(std::make_shared<boolean_parser>()));
             break;
         case data_type::Double:
-            parsers.emplace(std::move(std::make_shared<double_parser>()));
+            m_parsers.emplace(std::move(std::make_shared<double_parser>()));
             break;
         case data_type::BulkString:
-            parsers.emplace(std::move(std::make_shared<bulk_string_parser>()));
+            m_parsers.emplace(std::move(std::make_shared<bulk_string_parser>()));
             break;
         case data_type::Null:
-            parsers.emplace(std::move(std::make_shared<null_parser>()));
+            m_parsers.emplace(std::move(std::make_shared<null_parser>()));
             break;
         default:
             return parse_errc::UnknownRespType;
@@ -381,13 +381,13 @@ std::expected<size_t, std::error_code> LambdaSnail::resp::v2::int_parser::parse(
     }
 
     auto it_start = value.begin();
-    if (*it_start == prefix_)
+    if (*it_start == m_prefix)
     {
         ++it_start;
 
         // We only need to check for negativity when parsing the first part of an integer
-        is_negative = *it_start == '-';
-        if (is_negative)
+        m_is_negative = *it_start == '-';
+        if (m_is_negative)
         {
             ++it_start;
         }
@@ -403,7 +403,7 @@ std::expected<size_t, std::error_code> LambdaSnail::resp::v2::int_parser::parse(
                 break;
             case '\n':
                 ++it; // Compensate for premature loop exit
-                is_fully_parsed = true;
+                m_is_fully_parsed = true;
                 goto fully_parsed;
                 break;
             case '0':
@@ -416,7 +416,7 @@ std::expected<size_t, std::error_code> LambdaSnail::resp::v2::int_parser::parse(
             case '7':
             case '8':
             case '9':
-                state = (state * 10) + (*it - '0');
+                m_state = (m_state * 10) + (*it - '0');
                 break;
             default:
                 return std::unexpected(parse_errc::InvalidToken);
@@ -424,9 +424,9 @@ std::expected<size_t, std::error_code> LambdaSnail::resp::v2::int_parser::parse(
     }
 
 fully_parsed:
-    if (is_fully_parsed)
+    if (m_is_fully_parsed)
     {
-        data_.emplace_back(is_negative ? -state : state);
+        data_.emplace_back(m_is_negative ? -m_state : m_state);
     }
 
     return it - value.begin();
@@ -443,20 +443,20 @@ std::expected<size_t, std::error_code> LambdaSnail::resp::v2::double_parser::par
     }
 
     auto it_start = value.begin();
-    if (*it_start == prefix_)
+    if (*it_start == m_prefix)
     {
         ++it_start;
 
         // We only need to check for negativity when parsing the first part of an integer
-        is_negative = *it_start == '-';
-        if (is_negative)
+        m_is_negative = *it_start == '-';
+        if (m_is_negative)
         {
             ++it_start;
         }
     }
 
     auto it = it_start;
-    if (not is_fraction)
+    if (not m_is_fraction)
     {
         for (; it != value.end(); ++it)
         {
@@ -467,12 +467,12 @@ std::expected<size_t, std::error_code> LambdaSnail::resp::v2::double_parser::par
                     break;
                 case '\n':
                     ++it; // Compensate for premature loop exit
-                    is_fully_parsed = true;
+                    m_is_fully_parsed = true;
                     goto exit;
                 case '.':
                 case ',':
                     ++it;
-                    is_fraction = true;
+                    m_is_fraction = true;
                     goto fraction;
                 case '0':
                 case '1':
@@ -484,7 +484,7 @@ std::expected<size_t, std::error_code> LambdaSnail::resp::v2::double_parser::par
                 case '7':
                 case '8':
                 case '9':
-                    state = (state * 10.) + (*it - '0');
+                    m_state = (m_state * 10.) + (*it - '0');
                     break;
                 default:
                     return std::unexpected(parse_errc::InvalidToken);
@@ -493,7 +493,7 @@ std::expected<size_t, std::error_code> LambdaSnail::resp::v2::double_parser::par
     }
 
 fraction:
-    if (is_fraction)
+    if (m_is_fraction)
     {
         for (; it != value.end(); ++it)
         {
@@ -504,7 +504,7 @@ fraction:
                     break;
                 case '\n':
                     ++it; // Compensate for premature loop exit
-                    is_fully_parsed = true;
+                    m_is_fully_parsed = true;
                     goto exit;
                 case '0':
                 case '1':
@@ -516,7 +516,7 @@ fraction:
                 case '7':
                 case '8':
                 case '9':
-                    fraction = fraction + (*it - '0') * std::pow(.1, power++);
+                    m_fraction = m_fraction + (*it - '0') * std::pow(.1, m_power++);
                     break;
                 default:
                     return std::unexpected(parse_errc::InvalidToken);
@@ -525,9 +525,9 @@ fraction:
     }
 
 exit:
-    if (is_fully_parsed)
+    if (m_is_fully_parsed)
     {
-        data_.emplace_back((state + fraction) * (is_negative ? -1. : 1.));
+        data_.emplace_back((m_state + m_fraction) * (m_is_negative ? -1. : 1.));
     }
 
     return it - value.begin();
@@ -541,7 +541,7 @@ std::expected<size_t, std::error_code> LambdaSnail::resp::v2::boolean_parser::pa
     assert(not value.empty());
 
     auto start = value.begin();
-    if (*start == prefix_)
+    if (*start == m_prefix)
     {
         ++start;
 
@@ -550,12 +550,12 @@ std::expected<size_t, std::error_code> LambdaSnail::resp::v2::boolean_parser::pa
             case '1':
             case 't':
             case 'T':
-                state = true;
+                m_state = true;
                 break;
             case '0':
             case 'f':
             case 'F':
-                state = false;
+                m_state = false;
                 break;
             default:
                 return std::unexpected(parse_errc::InvalidToken);
@@ -574,14 +574,14 @@ std::expected<size_t, std::error_code> LambdaSnail::resp::v2::boolean_parser::pa
         if (*start == '\n')
         {
             ++start;
-            is_fully_parsed = true;
+            m_is_fully_parsed = true;
             break;
         }
     }
 
-    if (is_fully_parsed)
+    if (m_is_fully_parsed)
     {
-        data_.emplace_back(state);
+        data_.emplace_back(m_state);
     }
 
     return start - value.begin();
@@ -598,7 +598,7 @@ std::expected<size_t, std::error_code> LambdaSnail::resp::v2::null_parser::parse
     }
 
     auto start = value.begin();
-    if (*start == prefix_)
+    if (*start == m_prefix)
     {
         ++start;
     }
@@ -614,7 +614,7 @@ std::expected<size_t, std::error_code> LambdaSnail::resp::v2::null_parser::parse
         if (*start == '\n')
         {
             ++start;
-            is_fully_parsed = true;
+            m_is_fully_parsed = true;
             break;
         }
 
@@ -622,9 +622,9 @@ std::expected<size_t, std::error_code> LambdaSnail::resp::v2::null_parser::parse
         return std::unexpected(parse_errc::InvalidToken);
     }
 
-    if (is_fully_parsed)
+    if (m_is_fully_parsed)
     {
-        data_.emplace_back(Null{});
+        data_.emplace_back(null{});
     }
 
     return start - value.begin();
@@ -642,7 +642,7 @@ std::expected<size_t, std::error_code> LambdaSnail::resp::v2::simple_string_pars
     }
 
     auto start = value.begin();
-    if (*start == prefix_)
+    if (*start == m_prefix)
     {
         ++start;
     }
@@ -661,17 +661,17 @@ std::expected<size_t, std::error_code> LambdaSnail::resp::v2::simple_string_pars
         {
             ++rn_adjustment;
             ++it;
-            is_fully_parsed = true;
+            m_is_fully_parsed = true;
             break;
         }
     }
 
     auto const num_characters = it - start - rn_adjustment;
-    state += value.substr(start - value.begin(), num_characters);
+    m_state += value.substr(start - value.begin(), num_characters);
 
-    if (is_fully_parsed)
+    if (m_is_fully_parsed)
     {
-        data_.emplace_back(state);
+        data_.emplace_back(m_state);
     }
 
     return it - value.begin();
@@ -689,20 +689,20 @@ std::expected<size_t, std::error_code> LambdaSnail::resp::v2::bulk_string_parser
 
     auto start = value.begin();
 
-    if (not size_parser.is_done())
+    if (not m_size_parser.is_done())
     {
         std::vector<data> size_v{};
-        auto const result = size_parser.parse(value, size_v);
+        auto const result = m_size_parser.parse(value, size_v);
         if (not result.has_value())
         {
             return result;
         }
 
         auto const read = result.value();
-        if (size_parser.is_done())
+        if (m_size_parser.is_done())
         {
             assert(size_v.size() == 1);
-            size = std::get<int64_t>(size_v[0]);
+            m_size = std::get<int64_t>(size_v[0]);
         }
 
         // Fully read, no characters left in value, or
@@ -717,25 +717,25 @@ std::expected<size_t, std::error_code> LambdaSnail::resp::v2::bulk_string_parser
     }
 
     auto it = start;
-    for (; it < value.end() and size > 0; ++it)
+    for (; it < value.end() and m_size > 0; ++it)
     {
-        --size;
+        --m_size;
     }
 
-    state += std::string_view(start, it);
+    m_state += std::string_view(start, it);
 
-    if (size > 0)
+    if (m_size > 0)
     {
         return it - value.begin();
     }
 
-    if (parsed_line_ending > 0)
+    if (m_parsed_line_ending > 0)
     {
-        for (; it < value.end() and parsed_line_ending > 0; ++it)
+        for (; it < value.end() and m_parsed_line_ending > 0; ++it)
         {
             if (*it == '\r' or *it == '\n') // Technically we also allow strings ending with \n\r ...
             {
-                --parsed_line_ending;
+                --m_parsed_line_ending;
             }
             else
             {
@@ -744,10 +744,10 @@ std::expected<size_t, std::error_code> LambdaSnail::resp::v2::bulk_string_parser
         }
     }
 
-    if (parsed_line_ending == 0)
+    if (m_parsed_line_ending == 0)
     {
-        is_fully_parsed = true;
-        data_.emplace_back(state);
+        m_is_fully_parsed = true;
+        data_.emplace_back(m_state);
     }
 
     return it - value.begin();
@@ -755,11 +755,11 @@ std::expected<size_t, std::error_code> LambdaSnail::resp::v2::bulk_string_parser
 
 void LambdaSnail::resp::v2::parser::reset()
 {
-    num_elements = 1;
-    is_done_ = false;
-    while (not parsers.empty())
+    m_num_elements = 1;
+    m_is_done = false;
+    while (not m_parsers.empty())
     {
-        parsers.pop();
+        m_parsers.pop();
     }
 }
 
@@ -784,7 +784,7 @@ std::expected<size_t, std::error_code> LambdaSnail::resp::v2::array_parser::pars
         assert(array_size > 0);
 
         data_.reserve(static_cast<size_t>(array_size));
-        parser_.set_expected_num_elements(array_size);
+        m_parser.set_expected_num_elements(array_size);
     }
 
     return num;
