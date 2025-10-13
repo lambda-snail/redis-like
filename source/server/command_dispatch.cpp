@@ -52,6 +52,7 @@ namespace LambdaSnail::server
                 {
                     return std::make_shared<set_handler>(m_server.get_database(m_current_db));
                 }
+                break;
             default:
                 break;
         }
