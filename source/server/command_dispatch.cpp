@@ -30,15 +30,18 @@ namespace LambdaSnail::server
         // TODO: Find a nicer way to handle this
         switch (command_name[0])
         {
+            // case 'C': // COMMAND DOCS or CONFIG
+            //     if (command_name.size() >= 3 and command_name[1] == 'O' and command_name[2] == 'M')
+            //     {
+            //         return std::make_shared<cmd_docs_handler>();
+            //     }
+            //     break;
             case 'P': // "PING"
                 return std::make_shared<ping_handler>();
-                break;
             case 'E': // "ECHO"
                 return std::make_shared<echo_handler>();
-                break;
             case 'G': // "GET"
                 return std::make_shared<get_handler>(m_server.get_database(m_current_db));
-                break;
             case 'S': //"SET" or "SELECT
                 if (command_name.size() > 3 and command_name[2] == 'L') // SELECT
                 {
@@ -49,7 +52,6 @@ namespace LambdaSnail::server
                 {
                     return std::make_shared<set_handler>(m_server.get_database(m_current_db));
                 }
-                break;
             default:
                 break;
         }
@@ -57,18 +59,18 @@ namespace LambdaSnail::server
         return std::make_shared<static_response_handler>("Unknown command: " + std::string(command_name));
     }
 
-    std::string command_dispatch::process_command(resp::data_view message)
+    std::string command_dispatch::process_command(std::vector<LambdaSnail::resp::v2::data> request)
     {
         ZoneNamed(ProcessCommand, true);
 
-        auto const request = message.materialize(resp::Array{});
+        //auto const request = message.materialize(resp::Array{});
 
-        if (request.size() == 0 or request[0].type != LambdaSnail::resp::data_type::BulkString)
+        if (request.empty())
         {
             return {"-Unable to parse request\r\n"};
         }
 
-        auto const command_name = request[0].materialize(resp::BulkString{});
+        auto const command_name = std::get<std::string>(request[0]);
 
         auto command = get_command(command_name);
         return command->execute(request);

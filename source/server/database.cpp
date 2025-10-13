@@ -3,9 +3,9 @@ module;
 #include <atomic>
 #include <cassert>
 #include <charconv>
+//#include <format>
 #include <functional>
 #include <future>
-#include <iomanip>
 #include <random>
 #include <shared_mutex>
 #include <string>
@@ -31,6 +31,8 @@ void LambdaSnail::server::entry_info::set_deleted() { flags |= static_cast<flags
 
 std::shared_ptr<LambdaSnail::server::entry_info> LambdaSnail::server::database::get_value(std::string const& key)
 {
+    ZoneScoped;
+
     auto lock = std::shared_lock{m_mutex};
 
     auto const it = m_store.find(key);
@@ -55,16 +57,18 @@ std::shared_ptr<LambdaSnail::server::entry_info> LambdaSnail::server::database::
     return it->second;
 }
 
-void LambdaSnail::server::database::set_value(std::string const& key, std::string_view value,
+void LambdaSnail::server::database::set_value(std::string const& key, LambdaSnail::resp::v2::data value,
                                               std::chrono::time_point<std::chrono::system_clock> ttl)
 {
+    ZoneScoped;
+
     auto lock = std::shared_lock{m_mutex};
 
     auto const it = m_store.find(key);
     std::shared_ptr<entry_info> const value_wrapper =
             (it == m_store.end()) ? std::make_shared<entry_info>() : it->second;
 
-    value_wrapper->data  = std::string(value);
+    value_wrapper->data  = std::move(value);
     value_wrapper->ttl   = ttl;
     value_wrapper->flags = {};
 
@@ -135,7 +139,7 @@ void LambdaSnail::server::database::handle_deletes(time_point_t now, size_t max_
     }
 }
 
-std::string LambdaSnail::server::ping_handler::execute(std::vector<resp::data_view> const& args) noexcept
+std::string LambdaSnail::server::ping_handler::execute(std::vector<LambdaSnail::resp::v2::data> const& args) noexcept
 {
     ZoneScoped;
 
@@ -143,7 +147,7 @@ std::string LambdaSnail::server::ping_handler::execute(std::vector<resp::data_vi
     return "PONG"_resp_simple_string;
 }
 
-std::string LambdaSnail::server::echo_handler::execute(std::vector<resp::data_view> const& args) noexcept
+std::string LambdaSnail::server::echo_handler::execute(std::vector<LambdaSnail::resp::v2::data> const& args) noexcept
 {
     ZoneScoped;
 
@@ -153,7 +157,7 @@ std::string LambdaSnail::server::echo_handler::execute(std::vector<resp::data_vi
         return "Malformed ECHO command"_resp_error;
     }
 
-    auto const str = args[1].materialize(resp::BulkString{});
+    auto const str = std::get<std::string>(args[1]); // args[1].materialize(resp::BulkString{});
     return "$" + std::to_string(str.size()) + resp_end + std::string(str.data(), str.size()) + resp_end;
 }
 
@@ -162,50 +166,69 @@ LambdaSnail::server::static_response_handler::static_response_handler(std::strin
 {
 }
 
-std::string LambdaSnail::server::static_response_handler::execute(std::vector<resp::data_view> const& args) noexcept
+std::string LambdaSnail::server::static_response_handler::execute(std::vector<LambdaSnail::resp::v2::data> const& args) noexcept
 {
-    return std::string(m_message);
+    return { m_message };
 }
 
-std::string LambdaSnail::server::get_handler::execute(std::vector<LambdaSnail::resp::data_view> const& args) noexcept
+std::string LambdaSnail::server::get_handler::execute(std::vector<LambdaSnail::resp::v2::data> const& args) noexcept
 {
     ZoneScoped;
 
     if (args.size() == 2)
     {
-        auto const key = std::string(args[1].materialize(LambdaSnail::resp::BulkString{}));
+        auto const& key = std::get<std::string>(args[1]);
 
-        auto value = m_database->get_value(std::move(key));
+        auto value = m_database->get_value(key);
         if (value)
         {
-            return value->data + resp_end;
+            if (int64_t const* i = std::get_if<int64_t>(&value->data))
+            {
+                return std::string(":") + std::to_string(*i) + resp_end;
+                //return std::format(":{}\r\n", *i);
+            }
+
+            if (std::string const* str = std::get_if<std::string>(&value->data))
+            {
+                return std::string("$" + std::to_string(str->size()) + resp_end + *str + resp_end);
+                //return std::format("${}\r\n{}\r\n", str->size(), *str);
+            }
+
+            if (double const* d = std::get_if<double>(&value->data))
+            {
+                return std::string(",") + std::to_string(*d) + resp_end;
+                //return std::format(",{}\r\n", *d);
+            }
+;
+            if (bool const* b = std::get_if<bool>(&value->data))
+            {
+                return std::string("#") + (*b ? "t" : "f") + resp_end;
+                //return std::format("#{}\r\n", (*b ? "t" : "f"));
+            }
         }
     }
 
     return resp_null;
 }
 
-std::string LambdaSnail::server::set_handler::execute(std::vector<resp::data_view> const& args) noexcept
+std::string LambdaSnail::server::set_handler::execute(std::vector<LambdaSnail::resp::v2::data> const& args) noexcept
 {
     ZoneScoped;
 
     if (args.size() == 3)
     {
-        auto const key = std::string(args[1].materialize(resp::BulkString{}));
-        auto value     = args[2].value;
-        m_database->set_value(key, value);
+        auto const key = std::get<std::string>(args[1]);
+        m_database->set_value(key, args[2]);
         return resp_ok;
     }
 
     if (args.size() == 5)
     {
-        auto const key = std::string(args[1].materialize(resp::BulkString{}));
-        auto value     = args[2].value;
-        auto option    = args[3].materialize(
-                resp::BulkString{}); // Assume EX or PX for now, also assume bulk string (can this be a simple string?)
+        auto const key = std::get<std::string>(args[1]);
+        auto option    = std::get<std::string>(args[3]); // Assume EX or PX for now, also assume bulk string (can this be a simple string?)
 
         // Redis CLI sends a bulk string - need to refactor parsing part to handle various cases
-        auto ttl_str = args[4].materialize(resp::BulkString{});
+        auto ttl_str = std::get<std::string>(args[4]);
 
         // auto conversion = std::to_integer(ttl_str);
         int64_t ttl{};
@@ -217,10 +240,10 @@ std::string LambdaSnail::server::set_handler::execute(std::vector<resp::data_vie
 
         if (option == "EX")
         {
-            m_database->set_value(key, value, std::chrono::system_clock::now() + std::chrono::seconds(ttl));
+            m_database->set_value(key, args[2], std::chrono::system_clock::now() + std::chrono::seconds(ttl));
         } else
         {
-            m_database->set_value(key, value, std::chrono::system_clock::now() + std::chrono::milliseconds(ttl));
+            m_database->set_value(key, args[2], std::chrono::system_clock::now() + std::chrono::milliseconds(ttl));
         }
 
         return resp_ok;
@@ -231,12 +254,11 @@ std::string LambdaSnail::server::set_handler::execute(std::vector<resp::data_vie
 }
 
 
-std::string LambdaSnail::server::select_handler::execute(std::vector<resp::data_view> const& args) noexcept
+std::string LambdaSnail::server::select_handler::execute(std::vector<LambdaSnail::resp::v2::data> const& args) noexcept
 {
     ZoneScoped;
 
-    // TODO: Find nice way to encapsulate getting integers from bulk strings or parameters
-    auto const database = args[1].materialize(resp::BulkString{});
+    auto const database = std::get<std::string>(args[1]);
 
     server::database_handle_t handle;
     std::from_chars(database.data(), database.data() + database.length(), handle);

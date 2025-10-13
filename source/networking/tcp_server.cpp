@@ -32,7 +32,7 @@ namespace LambdaSnail::networking
      */
     export struct server_options
     {
-        uint16_t port{ 6379 };
+        uint16_t port{ 9999 };
         uint32_t cleanup_interval_seconds{ 1024 };
         uint8_t num_databases{ 1 };
     };
@@ -66,29 +66,59 @@ asio::awaitable<void> connection(
 
     try
     {
+        std::string_view buffer_view;
+        LambdaSnail::resp::v2::parser parser{};
+        std::vector<LambdaSnail::resp::v2::data> data;
+
         while (true)
         {
-            auto [ec, n] = co_await socket.async_read_some(
-                asio::buffer(buffer_info.buffer, buffer_info.size),
-                asio::as_tuple(asio::use_awaitable));
-            if (ec == asio::error::eof) [[unlikely]]
+            do
             {
-                // We separate the handling of eof since it's not an error per se
-                break;
-            }
+                parser.reset();
+                data.clear();
 
-            if (ec) [[unlikely]]
-            {
-                // These are the errors we should log
-                logger->get_network_logger()->error("Error while reading from socket: {}", ec.message());
-                break;
-            }
+                auto [ec, n] = co_await socket.async_read_some(
+                                asio::buffer(buffer_info.buffer, buffer_info.size),
+                                asio::as_tuple(asio::use_awaitable));
+                if (ec == asio::error::eof) [[unlikely]]
+                {
+                    // We separate the handling of eof since it's not an error per se
+                    goto connection_done;
+                    break;
+                }
+                if (ec) [[unlikely]]
+                {
+                    // These are the errors we should log
+                    logger->get_network_logger()->error("Error while reading from socket: {}", ec.message());
+                    break;
+                }
 
-            LambdaSnail::resp::data_view const resp_data(std::string_view(buffer_info.buffer, n));
-            std::string response = dispatch->process_command(resp_data);
+                if (buffer_view.empty())
+                {
+                    buffer_view = std::string_view(buffer_info.buffer, n);
+                }
+
+                auto result = parser.add_buffer(buffer_view, data);
+                if (result.has_value())
+                {
+                    auto const read = result.value();
+                    if (read != n)
+                    {
+                        assert(n > read);
+                        assert(parser.is_done());
+
+                        buffer_view = std::string_view(buffer_info.buffer + read, n - read);
+                    }
+
+                    // TODO: Handle errors
+                }
+            }
+            while (not parser.is_done());
+
+            std::string response = dispatch->process_command(data);
 
             auto [ec_w, n_written] = co_await async_write(socket, asio::buffer(response, response.size()), asio::as_tuple(asio::use_awaitable));
-            if (ec) [[unlikely]]
+            if (ec_w) [[unlikely]]
             {
                 logger->get_network_logger()->error("Error while writing to socket: {}", ec_w.message());
             }
@@ -98,6 +128,9 @@ asio::awaitable<void> connection(
     {
         std::printf("echo Exception: %s\n", e.what());
     }
+
+connection_done:
+    logger->get_network_logger()->trace("Connection terminated");
 }
 
 asio::awaitable<void> listener(

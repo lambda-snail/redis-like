@@ -1,13 +1,20 @@
 module;
 
+
 #include <cassert>
 #include <cmath>
-#include <cstdint>
+#include <expected>
+#include <stack>
 #include <stdexcept>
 #include <string>
+#include <system_error>
+#include <variant>
 #include <vector>
 
 #include <tracy/Tracy.hpp>
+
+//#include <asio/detail/reactive_socket_accept_op.hpp>
+//#include "../../build/debug/cli11_proj-src/include/CLI/TypeTools.hpp"
 
 /**
  * The Tracy macros for instrumenting a block are not compatible with constexpr, so in
@@ -20,67 +27,86 @@ module;
 #define profile_constexpr
 #endif
 
-export module resp :resp.parser;
+export module resp:resp.parser;
 
 namespace LambdaSnail::resp
 {
-    export enum class data_type : uint8_t
-    {
-        SimpleString    = '+',
-        SimpleError     = '-',
-        Integer         = ':',
-        Boolean         = '#',
-        Double          = ',',
-        Null            = '_',
-        Array           = '*',
-        BulkString      = '$'
+    export enum class data_type : uint8_t {
+        SimpleString = '+',
+        SimpleError  = '-',
+        Integer      = ':',
+        Boolean      = '#',
+        Double       = ',',
+        Null         = '_',
+        Array        = '*',
+        BulkString   = '$'
     };
 
-    export struct Boolean {};
-    export struct Double {};
-    export struct Integer {};
-    export struct Array {};
-    export struct BulkString {};
-    export struct SimpleString {};
-
-    export struct data_view
+    export struct Boolean
     {
-        profile_constexpr data_view() = default;
-        profile_constexpr data_view(data_type type, std::string_view message);
-        profile_constexpr explicit data_view(std::string_view message);
-
-        data_type type{};
-        std::string_view value{};
-
-        [[nodiscard]] profile_constexpr bool is_null() const;
-        [[nodiscard]] profile_constexpr bool materialize(Boolean) const;
-        [[nodiscard]] profile_constexpr int64_t materialize(Integer) const;
-        [[nodiscard]] profile_constexpr double_t materialize(Double) const;
-
-        [[nodiscard]] profile_constexpr std::string_view materialize(SimpleString) const;
-        [[nodiscard]] profile_constexpr std::string_view materialize(BulkString) const;
-        [[nodiscard]] profile_constexpr std::vector<data_view> materialize(Array) const;
+    };
+    export struct Double
+    {
+    };
+    export struct Integer
+    {
+    };
+    export struct Array
+    {
+    };
+    export struct BulkString
+    {
+    };
+    export struct SimpleString
+    {
     };
 
-    class parser
-    {
-    public:
-        [[nodiscard]] profile_constexpr data_view parse_message_s(std::string_view const& message) const;
-        [[nodiscard]] profile_constexpr data_view parse_message_s(std::string_view const &message, std::string_view::iterator start, std::string_view::iterator &end) const;
-
-        [[nodiscard]] profile_constexpr data_view parse_array_s(std::string_view const &message, std::string_view::iterator start, std::string_view::iterator &end) const;
-        [[nodiscard]] profile_constexpr data_view parse_bulk_string_s(std::string_view const &message, std::string_view::iterator start, std::string_view::iterator &end) const;
-
-    private:
-        [[nodiscard]] profile_constexpr data_view find_end_s(std::string_view const &message) const;
-        [[nodiscard]] profile_constexpr data_view find_end_s(std::string_view const &message, std::string_view::iterator start, std::string_view::iterator &end) const;
-
-        [[nodiscard]] profile_constexpr data_view validate_integral(data_view data) const;
-        [[nodiscard]] profile_constexpr data_view validate_double(data_view data) const;
-        [[nodiscard]] profile_constexpr data_view validate_boolean(data_view data) const;
-        [[nodiscard]] profile_constexpr data_view validate_null(data_view data) const;
-        [[nodiscard]] profile_constexpr data_view validate_simple_string(data_view data) const;
-    };
+    // export struct data_view
+    // {
+    //     profile_constexpr data_view() = default;
+    //     profile_constexpr data_view(data_type type, std::string_view message);
+    //     profile_constexpr explicit data_view(std::string_view message);
+    //
+    //     data_type type{};
+    //     std::string_view value{};
+    //
+    //     [[nodiscard]] profile_constexpr bool is_null() const;
+    //     [[nodiscard]] profile_constexpr bool materialize(Boolean) const;
+    //     [[nodiscard]] profile_constexpr int64_t materialize(Integer) const;
+    //     [[nodiscard]] profile_constexpr double_t materialize(Double) const;
+    //
+    //     [[nodiscard]] profile_constexpr std::string_view materialize(SimpleString) const;
+    //     [[nodiscard]] profile_constexpr std::string_view materialize(BulkString) const;
+    //     [[nodiscard]] profile_constexpr std::vector<data_view> materialize(Array) const;
+    // };
+    //
+    // class parser
+    // {
+    // public:
+    //     [[nodiscard]] profile_constexpr data_view parse_message_s(std::string_view const& message) const;
+    //     [[nodiscard]] profile_constexpr data_view parse_message_s(std::string_view const& message,
+    //                                                               std::string_view::iterator start,
+    //                                                               std::string_view::iterator& end) const;
+    //
+    //     [[nodiscard]] profile_constexpr data_view parse_array_s(std::string_view const& message,
+    //                                                             std::string_view::iterator start,
+    //                                                             std::string_view::iterator& end) const;
+    //     [[nodiscard]] profile_constexpr data_view parse_bulk_string_s(std::string_view const& message,
+    //                                                                   std::string_view::iterator start,
+    //                                                                   std::string_view::iterator& end) const;
+    //
+    // private:
+    //     [[nodiscard]] profile_constexpr data_view find_end_s(std::string_view const& message) const;
+    //     [[nodiscard]] profile_constexpr data_view find_end_s(std::string_view const& message,
+    //                                                          std::string_view::iterator start,
+    //                                                          std::string_view::iterator& end) const;
+    //
+    //     [[nodiscard]] profile_constexpr data_view validate_integral(data_view data) const;
+    //     [[nodiscard]] profile_constexpr data_view validate_double(data_view data) const;
+    //     [[nodiscard]] profile_constexpr data_view validate_boolean(data_view data) const;
+    //     [[nodiscard]] profile_constexpr data_view validate_null(data_view data) const;
+    //     [[nodiscard]] profile_constexpr data_view validate_simple_string(data_view data) const;
+    // };
 
     export inline namespace literals
     {
@@ -99,471 +125,1237 @@ namespace LambdaSnail::resp
 
         constexpr std::string resp_ok = "OK"_resp_simple_string;
     }
-}
 
+    struct resp_error
+    {
+    };
+} // namespace LambdaSnail::resp
 
-profile_constexpr LambdaSnail::resp::data_view::data_view(std::string_view message)
+namespace LambdaSnail::resp::v2
 {
-    parser p;
-    (*this) = p.parse_message_s(message);
+    export enum struct parse_errc
+    {
+        Success = 0,
+        UnknownRespType,
+        InvalidToken,
+        EmptyString
+    };
 }
 
-profile_constexpr LambdaSnail::resp::data_view::data_view(data_type type, std::string_view message) : type(type), value(message) { }
-
-profile_constexpr bool LambdaSnail::resp::data_view::is_null() const
+namespace std
 {
-    return type == data_type::Null;
+    template <> struct is_error_code_enum<LambdaSnail::resp::v2::parse_errc> : true_type {};
 }
 
-profile_constexpr bool LambdaSnail::resp::data_view::materialize(Boolean tag) const
+namespace LambdaSnail::resp::v2
+{
+    export class parse_errc_category : public std::error_category
+    {
+    public:
+        [[nodiscard]] virtual const char *name() const noexcept override final { return "ParseError"; }
+
+        [[nodiscard]] virtual std::string message(int c) const override final
+        {
+            switch (static_cast<parse_errc>(c))
+            {
+                case parse_errc::Success:
+                    return "Parse successful";
+                case parse_errc::UnknownRespType:
+                    return "Unknown data type";
+                case parse_errc::EmptyString:
+                    return "Encountered empty string while parsing";
+                case parse_errc::InvalidToken:
+                    return "Encountered an invalid token for the given data type";
+                default:
+                    return "unknown";
+            }
+        }
+
+        [[nodiscard]] virtual std::error_condition default_error_condition(int c) const noexcept override final
+        {
+            switch (static_cast<parse_errc>(c))
+            {
+                case parse_errc::InvalidToken:
+                    return make_error_condition(std::errc::invalid_argument);
+                case parse_errc::UnknownRespType:
+                    return make_error_condition(std::errc::operation_not_supported);
+                case parse_errc::EmptyString:
+                    return make_error_condition(std::errc::invalid_argument);
+                default:
+                    return {c, *this};
+            }
+        }
+    };
+}
+
+static LambdaSnail::resp::v2::parse_errc_category const& parse_errc_category()
+{
+    static LambdaSnail::resp::v2::parse_errc_category c;
+    return c;
+}
+
+namespace LambdaSnail::resp::v2
+{
+    std::error_code make_error_code(LambdaSnail::resp::v2::parse_errc e)
+    {
+        return {static_cast<int>(e), parse_errc_category()};
+    }
+
+    export struct Null
+    {
+        bool operator==(Null const&) const { return true; }
+    };
+
+    export typedef std::variant<int64_t, std::string, double, bool, Null> data;
+
+    class stateful_parser
+    {
+    public:
+        explicit stateful_parser(char const prefix) : prefix_(prefix) {}
+
+        [[nodiscard]] virtual bool is_done() const { return is_fully_parsed; }
+        [[nodiscard]] virtual std::expected<size_t, std::error_code> parse(std::string_view value,
+                                                                           std::vector<data>& data_) = 0;
+
+        virtual ~stateful_parser() = default;
+
+    protected:
+        char const prefix_;
+        bool is_fully_parsed { false };
+    };
+
+    class int_parser : public stateful_parser
+    {
+    public:
+        explicit int_parser(char const prefix = static_cast<char>(data_type::Integer)) : stateful_parser(prefix) {}
+
+        //[[nodiscard]] data get_value() const override { assert(is_fully_parsed); return data{ state }; }
+        [[nodiscard]] std::expected<size_t, std::error_code> parse(std::string_view value,
+                                                                   std::vector<data>& data_) override;
+
+        // int_parser(int_parser&& parser) noexcept = delete;
+        // int_parser(const int_parser& parser) = delete;
+        // int_parser& operator=(int_parser const&) const = delete;
+        // int_parser& operator=(int_parser const&&) = delete;
+    private:
+        int64_t state {}; // Intermediate or fully parsed value
+        bool is_negative { false };
+    };
+
+    class double_parser : public stateful_parser
+    {
+    public:
+        explicit double_parser() : stateful_parser(static_cast<char>(data_type::Double)) {}
+
+        [[nodiscard]] std::expected<size_t, std::error_code> parse(std::string_view value,
+                                                                   std::vector<data>& data_) override;
+
+    private:
+        double state {};
+        double fraction {};
+        double power { 1 };
+        bool is_fraction { false };
+        bool is_negative { false };
+    };
+
+    class boolean_parser : public stateful_parser
+    {
+    public:
+        explicit boolean_parser() : stateful_parser(static_cast<char>(data_type::Boolean)) {}
+
+        [[nodiscard]] std::expected<size_t, std::error_code> parse(std::string_view value,
+                                                                   std::vector<data>& data_) override;
+    private:
+        bool state { false };
+    };
+
+    class null_parser : public stateful_parser
+    {
+    public:
+        explicit null_parser() : stateful_parser(static_cast<char>(data_type::Null)) {}
+
+        [[nodiscard]] std::expected<size_t, std::error_code> parse(std::string_view value,
+                                                                   std::vector<data>& data_) override;
+    };
+
+    class simple_string_parser final : public stateful_parser
+    {
+    public:
+        explicit simple_string_parser() : stateful_parser(static_cast<char>(data_type::SimpleString)) {}
+
+        [[nodiscard]] std::expected<size_t, std::error_code> parse(std::string_view value,
+                                                                   std::vector<data>& data_) override;
+
+    private:
+        std::string state {};
+    };
+
+    class bulk_string_parser final : public stateful_parser
+    {
+    public:
+        explicit bulk_string_parser() :
+            stateful_parser(static_cast<char>(data_type::BulkString)),
+            size_parser(static_cast<char>(data_type::BulkString)) {}
+
+        [[nodiscard]] std::expected<size_t, std::error_code> parse(std::string_view value,
+                                                                   std::vector<data>& data_) override;
+
+    private:
+
+        int_parser size_parser;
+
+        size_t parsed_line_ending { resp_end.size() };
+        size_t size { 0 };
+        std::string state {};
+
+        int_parser num_parser = int_parser(static_cast<char>(data_type::BulkString));
+    };
+
+    /**
+     * Online parser that can be called incrementally to parse a message in chunks.
+     *
+     * To simplify things for this exercise, it has been assumed that all messages are encased in
+     * an array. This assumption is reasonable since RESP commands are sent as arrays (see
+     * https://redis.io/docs/latest/develop/reference/protocol-spec/#arrays) so the use case for the
+     * parser is actually to parse RESP arrays.
+     *
+     * However, this is not valid in general for RESP, as arrays can contain nested arrays arbitrarily.
+     */
+    // TODO: Write tests for parsing without type marker in message - should not segfault
+    export class parser
+    {
+    public:
+        [[nodiscard]] profile_constexpr std::expected<size_t, std::error_code> add_buffer(std::string_view buffer, std::vector<data>& data_);
+
+        void reset();
+        [[nodiscard]] inline bool is_done() const { return is_done_; };
+
+        void set_expected_num_elements(size_t num) { num_elements = num; };
+
+    private:
+        size_t num_elements { 1 };
+        bool is_done_ { false };
+
+        std::stack<std::shared_ptr<stateful_parser>> parsers {};
+        std::error_code add_parser(std::string_view::const_iterator start);
+    };
+
+    /**
+     * The array parser will always run first in a well-formed message. To make this work, the array parser
+     * communicates to the parser how many elements are expected to appear in the message. This is slightly
+     * convoluted but works for the purposes of this limited scenario where we know that there first thing
+     * to parse is always an array, and no nested arrays exist.
+     */
+    // TODO: Use int parser as member instead
+    class array_parser final : public int_parser
+    {
+    public:
+        explicit array_parser(parser& parser) : int_parser(static_cast<char>(data_type::Array)), parser_(parser) {}
+
+        [[nodiscard]] std::expected<size_t, std::error_code> parse(std::string_view value,
+                                                                   std::vector<data>& data_) override;
+
+    private:
+        parser& parser_;
+    };
+
+} // namespace LambdaSnail::resp::v2
+
+profile_constexpr std::expected<size_t, std::error_code> LambdaSnail::resp::v2::parser::add_buffer(std::string_view buffer, std::vector<data>& data_)
+{
+    if (buffer.empty()) [[unlikely]]
+    {
+        return std::unexpected(parse_errc::EmptyString);
+    }
+
+    auto it = buffer.begin();
+    while (it != buffer.end() and not is_done_)
+    {
+        if (parsers.empty())
+        {
+            auto ec = add_parser(it);
+            if (ec)
+            {
+                return std::unexpected(ec);
+            }
+        }
+
+        assert(not parsers.empty());
+
+        auto const& current_parser  = parsers.top();
+        auto const result           = current_parser->parse(std::string_view(it, buffer.end()), data_);
+        if (not result.has_value())
+        {
+            return std::unexpected(result.error());
+        }
+
+        auto const num         = result.value();
+        auto const all_parsed  = current_parser->is_done();
+        if (all_parsed)
+        {
+            parsers.pop();
+        }
+
+        std::advance(it, num);
+
+        is_done_ = data_.size() == num_elements;
+    }
+
+    return it - buffer.begin();
+}
+
+std::error_code LambdaSnail::resp::v2::parser::add_parser(std::string_view::const_iterator start)
+{
+    switch (static_cast<data_type>(*start))
+    {
+        case data_type::Integer:
+            parsers.emplace(std::move(std::make_shared<int_parser>()));
+            break;
+        case data_type::SimpleString:
+            parsers.emplace(std::move(std::make_shared<simple_string_parser>()));
+            break;
+        case data_type::Array:
+            parsers.emplace(std::move(std::make_shared<array_parser>(*this)));
+            break;
+        case data_type::Boolean:
+            parsers.emplace(std::move(std::make_shared<boolean_parser>()));
+            break;
+        case data_type::Double:
+            parsers.emplace(std::move(std::make_shared<double_parser>()));
+            break;
+        case data_type::BulkString:
+            parsers.emplace(std::move(std::make_shared<bulk_string_parser>()));
+            break;
+        case data_type::Null:
+            parsers.emplace(std::move(std::make_shared<null_parser>()));
+            break;
+        default:
+            return parse_errc::UnknownRespType;
+    }
+
+    return parse_errc::Success;
+}
+
+std::expected<size_t, std::error_code> LambdaSnail::resp::v2::int_parser::parse(std::string_view value,
+                                                                                std::vector<data>& data_)
 {
     ZoneScoped;
 
-    bool const is_bool = not value.empty() && value[0] == static_cast<char>(data_type::Boolean);
-    bool const has_correct_length = (value.size() == 2) or (value.size() == 4 and value[2] == '\r' and value[3] == '\n');
-
-    if (is_bool and has_correct_length) [[likely]]
+    if (value.empty())
     {
-        switch(value[1])
+        return std::unexpected(parse_errc::EmptyString);
+    }
+
+    auto it_start = value.begin();
+    if (*it_start == prefix_)
+    {
+        ++it_start;
+
+        // We only need to check for negativity when parsing the first part of an integer
+        is_negative = *it_start == '-';
+        if (is_negative)
         {
-            case 't':
-            case 'T':
-                return true;
-            case 'f':
-            case 'F':
-                return false;
-            default:
-                break;
+            ++it_start;
         }
     }
 
-    throw std::runtime_error("Attempt to materialize an invalid bool");
+    auto it = it_start;
+    for (; it < value.end(); ++it)
+    {
+        switch (*it)
+        {
+            case '\r':
+                continue;
+                break;
+            case '\n':
+                ++it; // Compensate for premature loop exit
+                is_fully_parsed = true;
+                goto fully_parsed;
+                break;
+            case '0':
+            case '1':
+            case '2':
+            case '3':
+            case '4':
+            case '5':
+            case '6':
+            case '7':
+            case '8':
+            case '9':
+                state = (state * 10) + (*it - '0');
+                break;
+            default:
+                return std::unexpected(parse_errc::InvalidToken);
+        }
+    }
+
+fully_parsed:
+    if (is_fully_parsed)
+    {
+        data_.emplace_back(is_negative ? -state : state);
+    }
+
+    return it - value.begin();
 }
 
-profile_constexpr int64_t LambdaSnail::resp::data_view::materialize(Integer) const
+std::expected<size_t, std::error_code> LambdaSnail::resp::v2::double_parser::parse(std::string_view value,
+                                                                                   std::vector<data>& data_)
 {
     ZoneScoped;
+
+    if (value.empty())
+    {
+        return std::unexpected(parse_errc::EmptyString);
+    }
 
     auto it_start = value.begin();
-    if(not value.empty() and *it_start == static_cast<char>(data_type::Integer))
+    if (*it_start == prefix_)
     {
         ++it_start;
+
+        // We only need to check for negativity when parsing the first part of an integer
+        is_negative = *it_start == '-';
+        if (is_negative)
+        {
+            ++it_start;
+        }
     }
 
-    bool const is_negative { value.size() > 1 and *it_start == '-' };
-    if(is_negative)
+    auto it = it_start;
+    if (not is_fraction)
     {
-        ++it_start;
+        for (; it != value.end(); ++it)
+        {
+            switch (*it)
+            {
+                case '\r':
+                    continue;
+                    break;
+                case '\n':
+                    ++it; // Compensate for premature loop exit
+                    is_fully_parsed = true;
+                    goto exit;
+                case '.':
+                case ',':
+                    ++it;
+                    is_fraction = true;
+                    goto fraction;
+                case '0':
+                case '1':
+                case '2':
+                case '3':
+                case '4':
+                case '5':
+                case '6':
+                case '7':
+                case '8':
+                case '9':
+                    state = (state * 10.) + (*it - '0');
+                    break;
+                default:
+                    return std::unexpected(parse_errc::InvalidToken);
+            }
+        }
     }
 
-    auto end = value.end();
-    if(*(end-1) == '\n')
+fraction:
+    if (is_fraction)
     {
-        end -= 2;
+        for (; it != value.end(); ++it)
+        {
+            switch (*it)
+            {
+                case '\r':
+                    continue;
+                    break;
+                case '\n':
+                    ++it; // Compensate for premature loop exit
+                    is_fully_parsed = true;
+                    goto exit;
+                case '0':
+                case '1':
+                case '2':
+                case '3':
+                case '4':
+                case '5':
+                case '6':
+                case '7':
+                case '8':
+                case '9':
+                    fraction = fraction + (*it - '0') * std::pow(.1, power++);
+                    break;
+                default:
+                    return std::unexpected(parse_errc::InvalidToken);
+            }
+        }
     }
 
-    int64_t integer{};
-    for(auto i = it_start; i < end; ++i)
+exit:
+    if (is_fully_parsed)
     {
-        integer = (integer*10)+(*i - '0');
+        data_.emplace_back((state + fraction) * (is_negative ? -1. : 1.));
     }
 
-    return is_negative ? -integer : integer;
+    return it - value.begin();
 }
 
-profile_constexpr double_t LambdaSnail::resp::data_view::materialize(Double) const
+std::expected<size_t, std::error_code> LambdaSnail::resp::v2::boolean_parser::parse(std::string_view value,
+                                                                                    std::vector<data>& data_)
 {
     ZoneScoped;
 
-    auto it = value.begin();
-    if(not value.empty() and *it == static_cast<char>(data_type::Double))
+    assert(not value.empty());
+
+    auto start = value.begin();
+    if (*start == prefix_)
     {
-        ++it;
+        ++start;
+
+        switch (*start)
+        {
+            case '1':
+            case 't':
+            case 'T':
+                state = true;
+                break;
+            case '0':
+            case 'f':
+            case 'F':
+                state = false;
+                break;
+            default:
+                return std::unexpected(parse_errc::InvalidToken);
+        }
     }
 
-    bool const is_negative { value.size() > 1 and *it == '-' };
-    if(is_negative)
+    // Now we simply need to find the end of the value
+    // Note that for simplicity, this is very permissive and will pass many cases that probably shouldn't be allowed
+    for (; start != value.end(); ++start)
     {
-        ++it;
+        if (*start == '\r')
+        {
+            continue;
+        }
+
+        if (*start == '\n')
+        {
+            ++start;
+            is_fully_parsed = true;
+            break;
+        }
     }
 
-    auto end = value.end();
-    if(*(end-1) == '\n')
+    if (is_fully_parsed)
     {
-        end -= 2;
+        data_.emplace_back(state);
     }
 
-    double_t number{};
-    for(; it < end and (*it != '.' and *it != ','); ++it)
-    {
-        number = (number*10.)+(*it - '0');
-    }
-
-    double_t fraction{};
-    for(auto j = end-1; j > it; --j)
-    {
-        fraction = (fraction*.1)+(*j - '0');
-    }
-
-    return (number + fraction*.1) * (is_negative ? -1 : 1);
+    return start - value.begin();
 }
 
-profile_constexpr std::string_view LambdaSnail::resp::data_view::materialize(SimpleString) const
+std::expected<size_t, std::error_code> LambdaSnail::resp::v2::null_parser::parse(std::string_view value,
+                                                                                 std::vector<data>& data_)
 {
     ZoneScoped;
 
-    size_t start = 0;
-    size_t length = value.length();
-    if(not value.empty() and *value.begin() == static_cast<char>(data_type::SimpleString)) [[likely]]
+    if (value.empty())
     {
-        --length;
+        return std::unexpected(parse_errc::EmptyString);
+    }
+
+    auto start = value.begin();
+    if (*start == prefix_)
+    {
         ++start;
     }
 
-    if(value.size() > 1 and *(value.end()-1) == '\n')
+    // Now we simply need to find the end of the value
+    for (; start != value.end(); ++start)
     {
-        length -= 2;
-    }
-
-    return value.substr(start, length);
-}
-
-profile_constexpr std::string_view LambdaSnail::resp::data_view::materialize(BulkString) const
-{
-    ZoneScoped;
-
-    assert(*value.begin() == static_cast<char>(data_type::BulkString));
-
-    if(value.size() == 1)
-    {
-        return {};
-    }
-
-    auto cursor = value.begin() + 1;
-    size_t length {0};
-
-    while(*cursor != '\r')
-    {
-        length = (length*10)+(*cursor - '0');
-        ++cursor;
-    }
-
-    if(not length) [[unlikely]]
-    {
-        return {};
-    }
-
-    // Skip the \r\n
-    ++cursor;
-    ++cursor;
-
-    auto end = cursor;
-    std::advance(end, static_cast<std::iter_difference_t<std::string_view>>(length));
-
-    return { cursor, end };
-}
-
-profile_constexpr std::vector<LambdaSnail::resp::data_view> LambdaSnail::resp::data_view::materialize(Array) const
-{
-    ZoneScoped;
-
-    assert(*value.begin() == static_cast<char>(data_type::Array));
-
-    auto cursor = value.begin() + 1;
-    size_t length {0};
-
-    while(*cursor != '\r')
-    {
-        length = (length*10)+(*cursor - '0');
-        ++cursor;
-    }
-
-    if(not length) [[unlikely]]
-    {
-        return {};
-    }
-
-    ++cursor;
-    ++cursor;
-
-    parser constexpr p;
-    std::vector<data_view> values(length);
-    for(size_t i = 0; i < length; ++i)
-    {
-        std::string_view::iterator end;
-        values[i] = p.parse_message_s(value, cursor, end);
-        cursor = end;
-    }
-
-    return values;
-}
-
-profile_constexpr LambdaSnail::resp::data_view LambdaSnail::resp::parser::parse_message_s(std::string_view const &message) const
-{
-    ZoneScoped;
-
-    auto dummy = message.end();
-    return parse_message_s(message, message.begin(), dummy);
-}
-
-profile_constexpr LambdaSnail::resp::data_view LambdaSnail::resp::parser::parse_message_s(std::string_view const &message, std::string_view::iterator start, std::string_view::iterator& end) const
-{
-    ZoneScoped;
-
-    switch(static_cast<data_type>(*start))
-    {
-        case data_type::Array:
-            return parse_array_s(message, start, end);
-        case data_type::BulkString:
-            return parse_bulk_string_s(message, start, end);
-        case data_type::Boolean:
-        case data_type::Integer:
-        case data_type::Double:
-        case data_type::Null:
-        case data_type::SimpleString:
-            return find_end_s(message, start, end); // How do we communicate that we need start and not ++start from an api perspective?
-        default:
-            break;
-    }
-
-    return { data_type::SimpleError, "Unsupported type: " + *start };
-}
-
-profile_constexpr LambdaSnail::resp::data_view LambdaSnail::resp::parser::parse_array_s(std::string_view const& message, std::string_view::iterator start, std::string_view::iterator& end) const
-{
-    ZoneScoped;
-
-    if(start == end or (message.size() == 1 and *start == static_cast<char>(data_type::Array)))
-    {
-        return { data_type::Array, {} };
-    }
-
-    auto cursor = start + 1;
-    size_t length {0};
-
-    while(*cursor != '\r')
-    {
-        length = (length*10)+(*cursor - '0');
-        ++cursor;
-    }
-
-    if(not length) [[unlikely]]
-    {
-        return { data_type::Array, {} };
-    }
-
-    ++cursor; // '\r'
-    ++cursor; // '\n'
-    for(size_t i = 0; i < length; ++i)
-    {
-        //values[i] = parse_message(message, cursor, end);
-        auto next_string = parse_message_s(message, cursor, end);
-        cursor = end;
-
-        if(next_string.type == data_type::SimpleError)
+        if (*start == '\r')
         {
-            return next_string;
+            continue;
         }
-    }
 
-    return { data_type::Array, std::string_view(start, end) };
-}
-
-profile_constexpr LambdaSnail::resp::data_view LambdaSnail::resp::parser::parse_bulk_string_s(std::string_view const &message, std::string_view::iterator start, std::string_view::iterator&end) const
-{
-    ZoneScoped;
-
-    if(message.size() == 1)
-    {
-        return { data_type::BulkString, {} };
-    }
-
-    auto cursor = start + 1;
-    size_t length {0};
-
-    while(*cursor != '\r')
-    {
-        length = (length*10)+(*cursor - '0');
-        ++cursor;
-    }
-
-    if(not length) [[unlikely]]
-    {
-        return { data_type::BulkString, {} };
-    }
-
-    ++cursor; // '\r'
-    ++cursor; // '\n'
-
-    //start = cursor;
-    std::ranges::advance(cursor, static_cast<std::iter_difference_t<std::string_view::iterator>>(length));
-    data_view const data { data_type::BulkString, std::string_view(start, cursor) };
-
-    ++cursor;
-    ++cursor;
-    end = cursor;
-
-    return data;
-}
-
-profile_constexpr LambdaSnail::resp::data_view LambdaSnail::resp::parser::find_end_s(std::string_view const& message) const
-{
-    ZoneScoped;
-
-    std::string_view::iterator dummy;
-    return find_end_s(message, message.cbegin(), dummy);
-}
-
-profile_constexpr LambdaSnail::resp::data_view LambdaSnail::resp::parser::find_end_s(std::string_view const& message, std::string_view::iterator start, std::string_view::iterator &end) const
-{
-    ZoneScoped;
-
-    if(message.empty())
-    {
-        return { data_type::SimpleError, "Cannot parse empty string to a resp type" };
-    }
-
-    data_view data { static_cast<data_type>(*start), {} };
-    for(auto i = start+1; i < message.cend(); ++i)
-    {
-        if(*i == '\n' and *(i-1) == '\r') [[unlikely]]
+        if (*start == '\n')
         {
-            end = i+1; // one past the ending
-            data.value = std::string_view(start, end);
-            //data.type = static_cast<data_type>(*start);
+            ++start;
+            is_fully_parsed = true;
+            break;
+        }
+
+        // ANy other character is an error for this type
+        return std::unexpected(parse_errc::InvalidToken);
+    }
+
+    if (is_fully_parsed)
+    {
+        data_.emplace_back(Null{});
+    }
+
+    return start - value.begin();
+}
+
+std::expected<size_t, std::error_code> LambdaSnail::resp::v2::simple_string_parser::parse(std::string_view value,
+                                                                                          std::vector<data>& data_)
+{
+    ZoneScoped;
+
+    // Empty strings are allowed, but empty (simple) strings in RESP should be defined with three characters
+    if (value.empty())
+    {
+        return std::unexpected(parse_errc::EmptyString);
+    }
+
+    auto start = value.begin();
+    if (*start == prefix_)
+    {
+        ++start;
+    }
+
+    int rn_adjustment = 0;
+    auto it = start;
+    for (; it != value.end(); ++it)
+    {
+        if (*it == '\r')
+        {
+            ++rn_adjustment;
+            continue;
+        }
+
+        if (*it == '\n')
+        {
+            ++rn_adjustment;
+            ++it;
+            is_fully_parsed = true;
             break;
         }
     }
 
-    // TODO: Do we validate here or when creating the actual data?
-    switch(data.type)
+    auto const num_characters = it - start - rn_adjustment;
+    state += value.substr(start - value.begin(), num_characters);
+
+    if (is_fully_parsed)
     {
-        case data_type::Integer:
-            return validate_integral(data);
-        case data_type::Double:
-            return validate_double(data);
-        case data_type::Boolean:
-            return validate_boolean(data);
-        case data_type::Null:
-            return validate_null(data);
-        case data_type::SimpleString:
-            return validate_simple_string(data);
-        case data_type::SimpleError:
-        default:
-            break;
+        data_.emplace_back(state);
     }
 
-    return { data_type::SimpleError, "Unable to parse string as a resp type" };
+    return it - value.begin();
 }
 
-profile_constexpr LambdaSnail::resp::data_view LambdaSnail::resp::parser::validate_integral(data_view const data) const
+std::expected<size_t, std::error_code> LambdaSnail::resp::v2::bulk_string_parser::parse(std::string_view value,
+                                                                                        std::vector<data>& data_)
 {
     ZoneScoped;
 
-    auto it_start = data.value.begin();
-    if(not data.value.empty() and *it_start == static_cast<char>(data_type::Integer))
+    if (value.empty())
     {
-        ++it_start;
+        return std::unexpected(parse_errc::EmptyString);
     }
 
-    bool const is_negative { data.value.size() > 1 and *it_start == '-' };
-    if(is_negative)
-    {
-        ++it_start;
-    }
+    auto start = value.begin();
 
-    auto i = it_start;
-    for(; i < data.value.end(); ++i)
+    if (not size_parser.is_done())
     {
-        if(auto const c = *i; c < '0' or c > '9') [[unlikely]]
+        std::vector<data> size_v{};
+        auto const result = size_parser.parse(value, size_v);
+        if (not result.has_value())
         {
-            break;
+            return result;
+        }
+
+        auto const read = result.value();
+        if (size_parser.is_done())
+        {
+            assert(size_v.size() == 1);
+            size = std::get<int64_t>(size_v[0]);
+        }
+
+        // Fully read, no characters left in value, or
+        // Not fully read, consumed all characters
+        if (read == value.size())
+        {
+         return value.size();
+        }
+
+        // Fully read, characters left in value
+        std::advance(start, read);
+    }
+
+    auto it = start;
+    for (; it < value.end() and size > 0; ++it)
+    {
+        --size;
+    }
+
+    state += std::string_view(start, it);
+
+    if (size > 0)
+    {
+        return it - value.begin();
+    }
+
+    if (parsed_line_ending > 0)
+    {
+        for (; it < value.end() and parsed_line_ending > 0; ++it)
+        {
+            if (*it == '\r' or *it == '\n') // Technically we also allow strings ending with \n\r ...
+            {
+                --parsed_line_ending;
+            }
+            else
+            {
+                return std::unexpected(parse_errc::InvalidToken);
+            }
         }
     }
 
-    if(data.value.end()-i == 2)
+    if (parsed_line_ending == 0)
     {
-        return data;
+        is_fully_parsed = true;
+        data_.emplace_back(state);
     }
 
-    return { data_type::SimpleError, "Unable to parse string as an integer type" };
+    return it - value.begin();
 }
 
-profile_constexpr LambdaSnail::resp::data_view LambdaSnail::resp::parser::validate_double(data_view const data) const
+void LambdaSnail::resp::v2::parser::reset()
+{
+    num_elements = 1;
+    is_done_ = false;
+    while (not parsers.empty())
+    {
+        parsers.pop();
+    }
+}
+
+std::expected<size_t, std::error_code> LambdaSnail::resp::v2::array_parser::parse(std::string_view value,
+                                                                                  std::vector<data>& data_)
 {
     ZoneScoped;
 
-    auto it_start = data.value.begin();
-    if(not data.value.empty() and *it_start == static_cast<char>(data_type::Double))
+    std::vector<data> d{};
+    auto const result = int_parser::parse(value, d);
+    if (not result.has_value())
     {
-        ++it_start;
+        return result;
     }
 
-    bool const is_negative { data.value.size() > 1 and *it_start == '-' };
-    if(is_negative)
+    auto const num = result.value();
+    if (is_done())
     {
-        ++it_start;
+        assert(not d.empty());
+
+        int64_t const array_size = std::get<int64_t>(d[0]);
+        assert(array_size > 0);
+
+        data_.reserve(static_cast<size_t>(array_size));
+        parser_.set_expected_num_elements(array_size);
     }
 
-    auto i = it_start;
-    for(; i < data.value.end(); ++i)
-    {
-        if(auto const c = *i; (c < '0' or c > '9') and c != '.' and c != ',') [[unlikely]]
-        {
-            break;
-        }
-    }
-
-    if(data.value.end()-i == 2)
-    {
-        return data;
-    }
-
-    return { data_type::SimpleError, "Unable to parse string as a double type" };
+    return num;
 }
 
-profile_constexpr LambdaSnail::resp::data_view LambdaSnail::resp::parser::validate_boolean(data_view const data) const
-{
-    ZoneScoped;
 
-    bool const is_bool = not data.value.empty() && data.value[0] == static_cast<char>(data_type::Boolean);
-    bool const has_correct_length = (data.value.size() == 2) or (data.value.size() == 4 and data.value[2] == '\r' and data.value[3] == '\n');
 
-    if (is_bool and has_correct_length) [[likely]]
-    {
-        switch(data.value[1])
-        {
-            case 't':
-            case 'T':
-            case 'f':
-            case 'F':
-                return data;
-            default:
-                break;
-        }
-    }
 
-    return { data_type::SimpleError, "Unable to parse string as a boolean type" };
-}
 
-profile_constexpr LambdaSnail::resp::data_view LambdaSnail::resp::parser::validate_null(data_view const data) const
-{
-    ZoneScoped;
 
-    auto const is_length_correct = data.value.size() == 1 or data.value.size() == 3;
-    auto const is_type_correct = data.value[0] == static_cast<char>(data_type::Null);
-    return is_length_correct and is_type_correct ? data : data_view{ data_type::SimpleError, "Unable to parse string as a null type" };
-}
 
-profile_constexpr LambdaSnail::resp::data_view LambdaSnail::resp::parser::validate_simple_string(data_view data) const
-{
-    ZoneScoped;
 
-    auto it = data.value.end();
-    if(data.value.size() >= 2 and data.value[0] == static_cast<char>(data_type::SimpleString) and *(--it) == '\n' and *(--it) == '\r')
-    {
-        return data;
-    }
 
-    return data_view{ data_type::SimpleError, "Unable to parse value as SimpleString" };
-}
+
+
+
+
+
+
+
+
+//
+//
+//
+//
+//
+//
+// profile_constexpr LambdaSnail::resp::data_view::data_view(std::string_view message)
+// {
+//     parser p;
+//     (*this) = p.parse_message_s(message);
+// }
+//
+// profile_constexpr LambdaSnail::resp::data_view::data_view(data_type type, std::string_view message) :
+//     type(type), value(message)
+// {
+// }
+//
+// profile_constexpr bool LambdaSnail::resp::data_view::is_null() const { return type == data_type::Null; }
+//
+// profile_constexpr bool LambdaSnail::resp::data_view::materialize(Boolean tag) const
+// {
+//     ZoneScoped;
+//
+//     bool const is_bool = not value.empty() && value[0] == static_cast<char>(data_type::Boolean);
+//     bool const has_correct_length =
+//             (value.size() == 2) or (value.size() == 4 and value[2] == '\r' and value[3] == '\n');
+//
+//     if (is_bool and has_correct_length) [[likely]]
+//     {
+//         switch (value[1])
+//         {
+//             case 't':
+//             case 'T':
+//                 return true;
+//             case 'f':
+//             case 'F':
+//                 return false;
+//             default:
+//                 break;
+//         }
+//     }
+//
+//     throw std::runtime_error("Attempt to materialize an invalid bool");
+// }
+//
+// profile_constexpr int64_t LambdaSnail::resp::data_view::materialize(Integer) const
+// {
+//     ZoneScoped;
+//
+//     auto it_start = value.begin();
+//     if (not value.empty() and *it_start == static_cast<char>(data_type::Integer))
+//     {
+//         ++it_start;
+//     }
+//
+//     bool const is_negative{value.size() > 1 and *it_start == '-'};
+//     if (is_negative)
+//     {
+//         ++it_start;
+//     }
+//
+//     auto end = value.end();
+//     if (*(end - 1) == '\n')
+//     {
+//         end -= 2;
+//     }
+//
+//     int64_t integer{};
+//     for (auto i = it_start; i < end; ++i)
+//     {
+//         integer = (integer * 10) + (*i - '0');
+//     }
+//
+//     return is_negative ? -integer : integer;
+// }
+//
+// profile_constexpr double_t LambdaSnail::resp::data_view::materialize(Double) const
+// {
+//     ZoneScoped;
+//
+//     auto it = value.begin();
+//     if (not value.empty() and *it == static_cast<char>(data_type::Double))
+//     {
+//         ++it;
+//     }
+//
+//     bool const is_negative{value.size() > 1 and *it == '-'};
+//     if (is_negative)
+//     {
+//         ++it;
+//     }
+//
+//     auto end = value.end();
+//     if (*(end - 1) == '\n')
+//     {
+//         end -= 2;
+//     }
+//
+//     double_t number{};
+//     for (; it < end and (*it != '.' and *it != ','); ++it)
+//     {
+//         number = (number * 10.) + (*it - '0');
+//     }
+//
+//     double_t fraction{};
+//     for (auto j = end - 1; j > it; --j)
+//     {
+//         fraction = (fraction * .1) + (*j - '0');
+//     }
+//
+//     return (number + fraction * .1) * (is_negative ? -1 : 1);
+// }
+//
+// profile_constexpr std::string_view LambdaSnail::resp::data_view::materialize(SimpleString) const
+// {
+//     ZoneScoped;
+//
+//     size_t start  = 0;
+//     size_t length = value.length();
+//     if (not value.empty() and *value.begin() == static_cast<char>(data_type::SimpleString)) [[likely]]
+//     {
+//         --length;
+//         ++start;
+//     }
+//
+//     if (value.size() > 1 and *(value.end() - 1) == '\n')
+//     {
+//         length -= 2;
+//     }
+//
+//     return value.substr(start, length);
+// }
+//
+// profile_constexpr std::string_view LambdaSnail::resp::data_view::materialize(BulkString) const
+// {
+//     ZoneScoped;
+//
+//     assert(*value.begin() == static_cast<char>(data_type::BulkString));
+//
+//     if (value.size() == 1)
+//     {
+//         return {};
+//     }
+//
+//     auto cursor = value.begin() + 1;
+//     size_t length{0};
+//
+//     while (*cursor != '\r')
+//     {
+//         length = (length * 10) + (*cursor - '0');
+//         ++cursor;
+//     }
+//
+//     if (not length) [[unlikely]]
+//     {
+//         return {};
+//     }
+//
+//     // Skip the \r\n
+//     ++cursor;
+//     ++cursor;
+//
+//     auto end = cursor;
+//     std::advance(end, static_cast<std::iter_difference_t<std::string_view>>(length));
+//
+//     return {cursor, end};
+// }
+//
+// profile_constexpr std::vector<LambdaSnail::resp::data_view> LambdaSnail::resp::data_view::materialize(Array) const
+// {
+//     ZoneScoped;
+//
+//     assert(*value.begin() == static_cast<char>(data_type::Array));
+//
+//     auto cursor = value.begin() + 1;
+//     size_t length{0};
+//
+//     while (*cursor != '\r')
+//     {
+//         length = (length * 10) + (*cursor - '0');
+//         ++cursor;
+//     }
+//
+//     if (not length) [[unlikely]]
+//     {
+//         return {};
+//     }
+//
+//     ++cursor;
+//     ++cursor;
+//
+//     parser constexpr p;
+//     std::vector<data_view> values(length);
+//     for (size_t i = 0; i < length; ++i)
+//     {
+//         std::string_view::iterator end;
+//         values[i] = p.parse_message_s(value, cursor, end);
+//         cursor    = end;
+//     }
+//
+//     return values;
+// }
+//
+// profile_constexpr LambdaSnail::resp::data_view
+// LambdaSnail::resp::parser::parse_message_s(std::string_view const& message) const
+// {
+//     ZoneScoped;
+//
+//     auto dummy = message.end();
+//     return parse_message_s(message, message.begin(), dummy);
+// }
+//
+// profile_constexpr LambdaSnail::resp::data_view
+// LambdaSnail::resp::parser::parse_message_s(std::string_view const& message, std::string_view::iterator start,
+//                                            std::string_view::iterator& end) const
+// {
+//     ZoneScoped;
+//
+//     switch (static_cast<data_type>(*start))
+//     {
+//         case data_type::Array:
+//             return parse_array_s(message, start, end);
+//         case data_type::BulkString:
+//             return parse_bulk_string_s(message, start, end);
+//         case data_type::Boolean:
+//         case data_type::Integer:
+//         case data_type::Double:
+//         case data_type::Null:
+//         case data_type::SimpleString:
+//             return find_end_s(message, start,
+//                               end); // How do we communicate that we need start and not ++start from an api perspective?
+//         default:
+//             break;
+//     }
+//
+//     return {data_type::SimpleError, "Unsupported type: " + *start};
+// }
+//
+// profile_constexpr LambdaSnail::resp::data_view
+// LambdaSnail::resp::parser::parse_array_s(std::string_view const& message, std::string_view::iterator start,
+//                                          std::string_view::iterator& end) const
+// {
+//     ZoneScoped;
+//
+//     if (start == end or (message.size() == 1 and *start == static_cast<char>(data_type::Array)))
+//     {
+//         return {data_type::Array, {}};
+//     }
+//
+//     auto cursor = start + 1;
+//     size_t length{0};
+//
+//     while (*cursor != '\r')
+//     {
+//         length = (length * 10) + (*cursor - '0');
+//         ++cursor;
+//     }
+//
+//     if (not length) [[unlikely]]
+//     {
+//         return {data_type::Array, {}};
+//     }
+//
+//     ++cursor; // '\r'
+//     ++cursor; // '\n'
+//     for (size_t i = 0; i < length; ++i)
+//     {
+//         // values[i] = parse_message(message, cursor, end);
+//         auto next_string = parse_message_s(message, cursor, end);
+//         cursor           = end;
+//
+//         if (next_string.type == data_type::SimpleError)
+//         {
+//             return next_string;
+//         }
+//     }
+//
+//     return {data_type::Array, std::string_view(start, end)};
+// }
+//
+// profile_constexpr LambdaSnail::resp::data_view
+// LambdaSnail::resp::parser::parse_bulk_string_s(std::string_view const& message, std::string_view::iterator start,
+//                                                std::string_view::iterator& end) const
+// {
+//     ZoneScoped;
+//
+//     if (message.size() == 1)
+//     {
+//         return {data_type::BulkString, {}};
+//     }
+//
+//     auto cursor = start + 1;
+//     size_t length{0};
+//
+//     while (*cursor != '\r')
+//     {
+//         length = (length * 10) + (*cursor - '0');
+//         ++cursor;
+//     }
+//
+//     if (not length) [[unlikely]]
+//     {
+//         return {data_type::BulkString, {}};
+//     }
+//
+//     ++cursor; // '\r'
+//     ++cursor; // '\n'
+//
+//     // start = cursor;
+//     std::ranges::advance(cursor, static_cast<std::iter_difference_t<std::string_view::iterator>>(length));
+//     data_view const data{data_type::BulkString, std::string_view(start, cursor)};
+//
+//     ++cursor;
+//     ++cursor;
+//     end = cursor;
+//
+//     return data;
+// }
+//
+// profile_constexpr LambdaSnail::resp::data_view
+// LambdaSnail::resp::parser::find_end_s(std::string_view const& message) const
+// {
+//     ZoneScoped;
+//
+//     std::string_view::iterator dummy;
+//     return find_end_s(message, message.cbegin(), dummy);
+// }
+//
+// profile_constexpr LambdaSnail::resp::data_view
+// LambdaSnail::resp::parser::find_end_s(std::string_view const& message, std::string_view::iterator start,
+//                                       std::string_view::iterator& end) const
+// {
+//     ZoneScoped;
+//
+//     if (message.empty())
+//     {
+//         return {data_type::SimpleError, "Cannot parse empty string to a resp type"};
+//     }
+//
+//     data_view data{static_cast<data_type>(*start), {}};
+//     for (auto i = start + 1; i < message.cend(); ++i)
+//     {
+//         if (*i == '\n' and *(i - 1) == '\r') [[unlikely]]
+//         {
+//             end        = i + 1; // one past the ending
+//             data.value = std::string_view(start, end);
+//             // data.type = static_cast<data_type>(*start);
+//             break;
+//         }
+//     }
+//
+//     // TODO: Do we validate here or when creating the actual data?
+//     switch (data.type)
+//     {
+//         case data_type::Integer:
+//             return validate_integral(data);
+//         case data_type::Double:
+//             return validate_double(data);
+//         case data_type::Boolean:
+//             return validate_boolean(data);
+//         case data_type::Null:
+//             return validate_null(data);
+//         case data_type::SimpleString:
+//             return validate_simple_string(data);
+//         case data_type::SimpleError:
+//         default:
+//             break;
+//     }
+//
+//     return {data_type::SimpleError, "Unable to parse string as a resp type"};
+// }
+//
+// profile_constexpr LambdaSnail::resp::data_view LambdaSnail::resp::parser::validate_integral(data_view const data) const
+// {
+//     ZoneScoped;
+//
+//     auto it_start = data.value.begin();
+//     if (not data.value.empty() and *it_start == static_cast<char>(data_type::Integer))
+//     {
+//         ++it_start;
+//     }
+//
+//     bool const is_negative{data.value.size() > 1 and *it_start == '-'};
+//     if (is_negative)
+//     {
+//         ++it_start;
+//     }
+//
+//     auto i = it_start;
+//     for (; i < data.value.end(); ++i)
+//     {
+//         if (auto const c = *i; c < '0' or c > '9') [[unlikely]]
+//         {
+//             break;
+//         }
+//     }
+//
+//     if (data.value.end() - i == 2)
+//     {
+//         return data;
+//     }
+//
+//     return {data_type::SimpleError, "Unable to parse string as an integer type"};
+// }
+//
+// profile_constexpr LambdaSnail::resp::data_view LambdaSnail::resp::parser::validate_double(data_view const data) const
+// {
+//     ZoneScoped;
+//
+//     auto it_start = data.value.begin();
+//     if (not data.value.empty() and *it_start == static_cast<char>(data_type::Double))
+//     {
+//         ++it_start;
+//     }
+//
+//     bool const is_negative{data.value.size() > 1 and *it_start == '-'};
+//     if (is_negative)
+//     {
+//         ++it_start;
+//     }
+//
+//     auto i = it_start;
+//     for (; i < data.value.end(); ++i)
+//     {
+//         if (auto const c = *i; (c < '0' or c > '9') and c != '.' and c != ',') [[unlikely]]
+//         {
+//             break;
+//         }
+//     }
+//
+//     if (data.value.end() - i == 2)
+//     {
+//         return data;
+//     }
+//
+//     return {data_type::SimpleError, "Unable to parse string as a double type"};
+// }
+//
+// profile_constexpr LambdaSnail::resp::data_view LambdaSnail::resp::parser::validate_boolean(data_view const data) const
+// {
+//     ZoneScoped;
+//
+//     bool const is_bool = not data.value.empty() && data.value[0] == static_cast<char>(data_type::Boolean);
+//     bool const has_correct_length =
+//             (data.value.size() == 2) or (data.value.size() == 4 and data.value[2] == '\r' and data.value[3] == '\n');
+//
+//     if (is_bool and has_correct_length) [[likely]]
+//     {
+//         switch (data.value[1])
+//         {
+//             case 't':
+//             case 'T':
+//             case 'f':
+//             case 'F':
+//                 return data;
+//             default:
+//                 break;
+//         }
+//     }
+//
+//     return {data_type::SimpleError, "Unable to parse string as a boolean type"};
+// }
+//
+// profile_constexpr LambdaSnail::resp::data_view LambdaSnail::resp::parser::validate_null(data_view const data) const
+// {
+//     ZoneScoped;
+//
+//     auto const is_length_correct = data.value.size() == 1 or data.value.size() == 3;
+//     auto const is_type_correct   = data.value[0] == static_cast<char>(data_type::Null);
+//     return is_length_correct and is_type_correct
+//                    ? data
+//                    : data_view{data_type::SimpleError, "Unable to parse string as a null type"};
+// }
+//
+// profile_constexpr LambdaSnail::resp::data_view LambdaSnail::resp::parser::validate_simple_string(data_view data) const
+// {
+//     ZoneScoped;
+//
+//     auto it = data.value.end();
+//     if (data.value.size() >= 2 and data.value[0] == static_cast<char>(data_type::SimpleString) and *(--it) == '\n' and
+//         *(--it) == '\r')
+//     {
+//         return data;
+//     }
+//
+//     return data_view{data_type::SimpleError, "Unable to parse value as SimpleString"};
+// }
