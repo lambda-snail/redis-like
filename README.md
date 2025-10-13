@@ -33,18 +33,18 @@ GET: 47460.84 requests per second, p50=0.519 msec
 
 Things that could (should) be improved if this was a real production application:
 
-- Heavily refactor the RESP parser - currently it attempts to rely on the buffer allocated by the connection handler to avoid 
+- [x] Heavily refactor the RESP parser - currently it attempts to rely on the buffer allocated by the connection handler to avoid 
   any allocations for as long as possible. Just before storing data in the database, it is "materialized" and storage for the
   entry is allocated. This works, but led to code duplication that should be refactored.
 
-- Add support for varying request sizes in the buffer pool - for the challenge requests are assumed to be 1 kiB or less. In a
+- [x] Add support for varying request sizes in the buffer pool - for the challenge requests are assumed to be 1 kiB or less. In a
   real redis application requests can of course be much larger than that. The connection would need to check if there is still
   data in the buffer after reading a request, and if so allocate a larger buffer. Another approach would be to parse the RESP
   commands using a parser that can work incrementally.
 
-- Currently, all data is stored as string in the database - not sure if this is a good idea or not. 
+- [x] Currently, all data is stored as string in the database - not sure if this is a good idea or not. 
 
-- Add more tests! Unit tests and integration tests. Integration tests an be constructed using `redis-cli`. Stress tests could be
+- [x] Add more tests! Unit tests and integration tests. Integration tests an be constructed using `redis-cli`. Stress tests could be
   constructed using `redis-benchmark`. All we need to make that work in a CI/CD pipeline is bash :)
 
 ## Learning Outcomes
@@ -53,6 +53,7 @@ Things that could (should) be improved if this was a real production application
 - Technical tradeoffs (e.g., use multi- or single threading)
 - Tradeoffs in project management (what to work on and what not to work on given the limited time of a side project)
 - Combat scope creep
+- Testing
 
 ## Disclaimer
 
@@ -61,10 +62,9 @@ needs to change, please contact me and I will make the change.
 
 # Requirements
 
-The code has been verified to work with clang-19 on Ubuntu (24.04). On Windows there are compilation errors that are similar
-to [this](https://developercommunity.visualstudio.com/t/C20-modules--boost::asio-still-being-/10038468) report. The ticket is
-still "under consideration" after almost three years, so it's anyone's guess when it can be resolved. If you know a workaround
-to this on Windows, PRs are always welcome :)
+The code has been verified to work with clang-19 and 20 on Ubuntu (25.10). On Windows there are compilation errors that are similar
+to [this](https://developercommunity.visualstudio.com/t/C20-modules--boost::asio-still-being-/10038468) report. The ticket is "pending release" so perhaps it will be possible
+to compile on Windows soon.
 
 # Running
 
