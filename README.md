@@ -44,7 +44,7 @@ Things that could (should) be improved if this was a real production application
 
 - [x] Currently, all data is stored as string in the database - not sure if this is a good idea or not. 
 
-- [x] Add more tests! Unit tests and integration tests. Integration tests an be constructed using `redis-cli`. Stress tests could be
+- [ ] Add more tests! Unit tests and integration tests. Integration tests an be constructed using `redis-cli`. Stress tests could be
   constructed using `redis-benchmark`. All we need to make that work in a CI/CD pipeline is bash :)
 
 ## Learning Outcomes
