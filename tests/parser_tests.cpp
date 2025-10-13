@@ -480,11 +480,11 @@ void ParseInput(std::string const& input)
     );
 }
 
-FUZZ_TEST(ParserFuzzTests, ParseInput)
-    .WithDomains(fuzztest::InRegexp("[,#:_-][^\r\n]+\r\n"));
-
 FUZZ_TEST(ParserFuzzTests_BulkString, ParseInput)
     .WithDomains(fuzztest::InRegexp("\\$[1-9][0-9]*\r\n.*\r\n"));
+
+FUZZ_TEST(ParserFuzzTests, ParseInput)
+    .WithDomains(fuzztest::InRegexp("[,#:_-][^\r\n]+\r\n"));
 
 FUZZ_TEST(ParserFuzzTests_NoCrash, ParseInput)
     .WithDomains(fuzztest::Arbitrary<std::string>());

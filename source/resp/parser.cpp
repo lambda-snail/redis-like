@@ -1,20 +1,16 @@
 module;
 
-
 #include <cassert>
 #include <cmath>
 #include <expected>
+#include <format>
 #include <stack>
-#include <stdexcept>
 #include <string>
 #include <system_error>
 #include <variant>
 #include <vector>
 
 #include <tracy/Tracy.hpp>
-
-//#include <asio/detail/reactive_socket_accept_op.hpp>
-//#include "../../build/debug/cli11_proj-src/include/CLI/TypeTools.hpp"
 
 /**
  * The Tracy macros for instrumenting a block are not compatible with constexpr, so in
@@ -60,8 +56,9 @@ namespace LambdaSnail::resp
         constexpr std::string resp_ok = "OK"_resp_simple_string;
     }
 
-    struct resp_error
+    struct resp_traits
     {
+        static constexpr size_t MaxStringSizeBytes = 512 * 1024 * 1024;
     };
 } // namespace LambdaSnail::resp
 
@@ -72,7 +69,8 @@ namespace LambdaSnail::resp::v2
         Success = 0,
         UnknownRespType,
         InvalidToken,
-        EmptyString
+        EmptyString,
+        PayloadTooLarge
     };
 }
 
@@ -100,6 +98,8 @@ namespace LambdaSnail::resp::v2
                     return "Encountered empty string while parsing";
                 case parse_errc::InvalidToken:
                     return "Encountered an invalid token for the given data type";
+                case parse_errc::PayloadTooLarge:
+                    return std::format("The payload is too large. The maximum payload is {} MiB", resp_traits::MaxStringSizeBytes);
                 default:
                     return "unknown";
             }
@@ -115,6 +115,8 @@ namespace LambdaSnail::resp::v2
                     return make_error_condition(std::errc::operation_not_supported);
                 case parse_errc::EmptyString:
                     return make_error_condition(std::errc::invalid_argument);
+                case parse_errc::PayloadTooLarge:
+                    return make_error_condition(std::errc::message_size);
                 default:
                     return {c, *this};
             }
@@ -314,7 +316,7 @@ profile_constexpr std::expected<size_t, std::error_code> LambdaSnail::resp::v2::
             }
         }
 
-        assert(not parsers.empty());
+        assert(not m_parsers.empty());
 
         auto const& current_parser  = m_parsers.top();
         auto const result           = current_parser->parse(std::string_view(it, buffer.end()), data_);
@@ -703,6 +705,12 @@ std::expected<size_t, std::error_code> LambdaSnail::resp::v2::bulk_string_parser
         {
             assert(size_v.size() == 1);
             m_size = std::get<int64_t>(size_v[0]);
+            if (m_size > resp_traits::MaxStringSizeBytes)
+            {
+                return std::unexpected(parse_errc::PayloadTooLarge);
+            }
+
+            m_state.reserve(m_size);
         }
 
         // Fully read, no characters left in value, or
@@ -719,10 +727,12 @@ std::expected<size_t, std::error_code> LambdaSnail::resp::v2::bulk_string_parser
     auto it = start;
     for (; it < value.end() and m_size > 0; ++it)
     {
+        m_state.push_back(*it);
         --m_size;
     }
 
-    m_state += std::string_view(start, it);
+    //m_state += std::string_view(start, it);
+    //std::copy(start, it, m_state.end());
 
     if (m_size > 0)
     {

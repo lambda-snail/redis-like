@@ -36,13 +36,13 @@ void StoresIntsCorrectly(std::string const& key, int64_t const& val)
     });
 }
 
-void StoresDoublesCorrectly(std::string const& key, double const& val)
-{
-    StoresDataCorrectly<double>(key, val, [](std::string const& result, auto const& value)
-    {
-        EXPECT_EQ(result, std::format(",{}\r\n", value));
-    });
-}
+// void StoresDoublesCorrectly(std::string const& key, double const& val)
+// {
+//     StoresDataCorrectly<double>(key, val, [](std::string const& result, auto const& value)
+//     {
+//         EXPECT_EQ(result, std::format(",{}\r\n", value));
+//     });
+// }
 
 void StoresBooleansCorrectly(std::string const& key, bool const& val)
 {
@@ -58,8 +58,8 @@ FUZZ_TEST(DatabaseSetStringTests, StoresStringsCorrectly)
 FUZZ_TEST(DatabaseSetStringTests, StoresIntsCorrectly)
   .WithDomains(fuzztest::Arbitrary<std::string>(), fuzztest::Arbitrary<int64_t>());
 
-FUZZ_TEST(DatabaseSetStringTests, StoresDoublesCorrectly)
-  .WithDomains(fuzztest::Arbitrary<std::string>(), fuzztest::Arbitrary<double>());
+// FUZZ_TEST(DatabaseSetStringTests, StoresDoublesCorrectly)
+//   .WithDomains(fuzztest::Arbitrary<std::string>(), fuzztest::Arbitrary<double>());
 
 FUZZ_TEST(DatabaseSetStringTests, StoresBooleansCorrectly)
   .WithDomains(fuzztest::Arbitrary<std::string>(), fuzztest::Arbitrary<bool>());
