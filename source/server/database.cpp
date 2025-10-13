@@ -3,10 +3,9 @@ module;
 #include <atomic>
 #include <cassert>
 #include <charconv>
-#include <format>
+//#include <format>
 #include <functional>
 #include <future>
-#include <iomanip>
 #include <random>
 #include <shared_mutex>
 #include <string>
@@ -32,6 +31,8 @@ void LambdaSnail::server::entry_info::set_deleted() { flags |= static_cast<flags
 
 std::shared_ptr<LambdaSnail::server::entry_info> LambdaSnail::server::database::get_value(std::string const& key)
 {
+    ZoneScoped;
+
     auto lock = std::shared_lock{m_mutex};
 
     auto const it = m_store.find(key);
@@ -59,6 +60,8 @@ std::shared_ptr<LambdaSnail::server::entry_info> LambdaSnail::server::database::
 void LambdaSnail::server::database::set_value(std::string const& key, LambdaSnail::resp::v2::data value,
                                               std::chrono::time_point<std::chrono::system_clock> ttl)
 {
+    ZoneScoped;
+
     auto lock = std::shared_lock{m_mutex};
 
     auto const it = m_store.find(key);
@@ -174,29 +177,33 @@ std::string LambdaSnail::server::get_handler::execute(std::vector<LambdaSnail::r
 
     if (args.size() == 2)
     {
-        auto const key = std::get<std::string>(args[1]);
+        auto const& key = std::get<std::string>(args[1]);
 
         auto value = m_database->get_value(key);
         if (value)
         {
             if (int64_t const* i = std::get_if<int64_t>(&value->data))
             {
-                return std::format(":{}\r\n", *i);
+                return std::string(":") + std::to_string(*i) + resp_end;
+                //return std::format(":{}\r\n", *i);
             }
 
             if (std::string const* str = std::get_if<std::string>(&value->data))
             {
-                return std::format("${}\r\n{}\r\n", str->size(), *str);
+                return std::string("$" + std::to_string(str->size()) + resp_end + *str + resp_end);
+                //return std::format("${}\r\n{}\r\n", str->size(), *str);
             }
 
             if (double const* d = std::get_if<double>(&value->data))
             {
-                return std::format(",{}\r\n", *d);
+                return std::string(",") + std::to_string(*d) + resp_end;
+                //return std::format(",{}\r\n", *d);
             }
 ;
             if (bool const* b = std::get_if<bool>(&value->data))
             {
-                return std::format("#{}\r\n", (*b ? "t" : "f"));
+                return std::string("#") + (*b ? "t" : "f") + resp_end;
+                //return std::format("#{}\r\n", (*b ? "t" : "f"));
             }
         }
     }
