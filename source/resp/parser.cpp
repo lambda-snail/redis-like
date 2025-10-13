@@ -651,27 +651,23 @@ std::expected<size_t, std::error_code> LambdaSnail::resp::v2::simple_string_pars
         ++start;
     }
 
-    int rn_adjustment = 0;
     auto it = start;
     for (; it != value.end(); ++it)
     {
         if (*it == '\r')
         {
-            ++rn_adjustment;
             continue;
         }
 
         if (*it == '\n')
         {
-            ++rn_adjustment;
             ++it;
             m_is_fully_parsed = true;
             break;
         }
-    }
 
-    auto const num_characters = it - start - rn_adjustment;
-    m_state += value.substr(start - value.begin(), num_characters);
+        m_state.push_back(*it);
+    }
 
     if (m_is_fully_parsed)
     {
