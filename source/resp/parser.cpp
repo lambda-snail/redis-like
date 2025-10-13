@@ -19,9 +19,9 @@ module;
  * profiler is in use.
  */
 #ifndef TRACY_ENABLE
-#define profile_constexpr constexpr
+#define LS_CONSTEXPR constexpr
 #else
-#define profile_constexpr
+#define LS_CONSTEXPR
 #endif
 
 export module resp:resp.parser;
@@ -85,9 +85,9 @@ namespace LambdaSnail::resp::v2
     export class parse_errc_category : public std::error_category
     {
     public:
-        [[nodiscard]] virtual const char *name() const noexcept override final { return "ParseError"; }
+        [[nodiscard]] constexpr virtual const char *name() const noexcept override final { return "ParseError"; }
 
-        [[nodiscard]] virtual std::string message(int c) const override final
+        [[nodiscard]] constexpr virtual std::string message(int c) const override final
         {
             switch (static_cast<parse_errc>(c))
             {
@@ -106,7 +106,7 @@ namespace LambdaSnail::resp::v2
             }
         }
 
-        [[nodiscard]] virtual std::error_condition default_error_condition(int c) const noexcept override final
+        [[nodiscard]] constexpr virtual std::error_condition default_error_condition(int c) const noexcept override final
         {
             switch (static_cast<parse_errc>(c))
             {
@@ -125,7 +125,7 @@ namespace LambdaSnail::resp::v2
     };
 }
 
-static LambdaSnail::resp::v2::parse_errc_category const& parse_errc_category()
+constexpr static LambdaSnail::resp::v2::parse_errc_category const& parse_errc_category()
 {
     static LambdaSnail::resp::v2::parse_errc_category c;
     return c;
@@ -133,7 +133,7 @@ static LambdaSnail::resp::v2::parse_errc_category const& parse_errc_category()
 
 namespace LambdaSnail::resp::v2
 {
-    std::error_code make_error_code(LambdaSnail::resp::v2::parse_errc e)
+    constexpr std::error_code make_error_code(LambdaSnail::resp::v2::parse_errc e)
     {
         return {static_cast<int>(e), parse_errc_category()};
     }
@@ -148,13 +148,13 @@ namespace LambdaSnail::resp::v2
     class stateful_parser
     {
     public:
-        explicit stateful_parser(char const prefix) : m_prefix(prefix) {}
+        LS_CONSTEXPR explicit stateful_parser(char const prefix) : m_prefix(prefix) {}
 
-        [[nodiscard]] virtual bool is_done() const { return m_is_fully_parsed; }
-        [[nodiscard]] virtual std::expected<size_t, std::error_code> parse(std::string_view value,
+        [[nodiscard]] LS_CONSTEXPR virtual bool is_done() const { return m_is_fully_parsed; }
+        [[nodiscard]] LS_CONSTEXPR virtual std::expected<size_t, std::error_code> parse(std::string_view value,
                                                                            std::vector<data>& data_) = 0;
 
-        virtual ~stateful_parser() = default;
+        virtual LS_CONSTEXPR ~stateful_parser() = default;
 
     protected:
         char const m_prefix;
@@ -164,16 +164,10 @@ namespace LambdaSnail::resp::v2
     class int_parser : public stateful_parser
     {
     public:
-        explicit int_parser(char const prefix = static_cast<char>(data_type::Integer)) : stateful_parser(prefix) {}
+        LS_CONSTEXPR explicit int_parser(char const prefix = static_cast<char>(data_type::Integer)) : stateful_parser(prefix) {}
 
-        //[[nodiscard]] data get_value() const override { assert(is_fully_parsed); return data{ state }; }
-        [[nodiscard]] std::expected<size_t, std::error_code> parse(std::string_view value,
+        [[nodiscard]] LS_CONSTEXPR std::expected<size_t, std::error_code> parse(std::string_view value,
                                                                    std::vector<data>& data_) override;
-
-        // int_parser(int_parser&& parser) noexcept = delete;
-        // int_parser(const int_parser& parser) = delete;
-        // int_parser& operator=(int_parser const&) const = delete;
-        // int_parser& operator=(int_parser const&&) = delete;
     private:
         int64_t m_state {}; // Intermediate or fully parsed value
         bool m_is_negative { false };
@@ -182,9 +176,9 @@ namespace LambdaSnail::resp::v2
     class double_parser : public stateful_parser
     {
     public:
-        explicit double_parser() : stateful_parser(static_cast<char>(data_type::Double)) {}
+        LS_CONSTEXPR explicit double_parser() : stateful_parser(static_cast<char>(data_type::Double)) {}
 
-        [[nodiscard]] std::expected<size_t, std::error_code> parse(std::string_view value,
+        [[nodiscard]] LS_CONSTEXPR std::expected<size_t, std::error_code> parse(std::string_view value,
                                                                    std::vector<data>& data_) override;
 
     private:
@@ -198,9 +192,9 @@ namespace LambdaSnail::resp::v2
     class boolean_parser : public stateful_parser
     {
     public:
-        explicit boolean_parser() : stateful_parser(static_cast<char>(data_type::Boolean)) {}
+        LS_CONSTEXPR explicit boolean_parser() : stateful_parser(static_cast<char>(data_type::Boolean)) {}
 
-        [[nodiscard]] std::expected<size_t, std::error_code> parse(std::string_view value,
+        [[nodiscard]] LS_CONSTEXPR std::expected<size_t, std::error_code> parse(std::string_view value,
                                                                    std::vector<data>& data_) override;
     private:
         bool m_state { false };
@@ -211,16 +205,16 @@ namespace LambdaSnail::resp::v2
     public:
         explicit null_parser() : stateful_parser(static_cast<char>(data_type::Null)) {}
 
-        [[nodiscard]] std::expected<size_t, std::error_code> parse(std::string_view value,
+        [[nodiscard]] LS_CONSTEXPR std::expected<size_t, std::error_code> parse(std::string_view value,
                                                                    std::vector<data>& data_) override;
     };
 
     class simple_string_parser final : public stateful_parser
     {
     public:
-        explicit simple_string_parser() : stateful_parser(static_cast<char>(data_type::SimpleString)) {}
+        LS_CONSTEXPR explicit simple_string_parser() : stateful_parser(static_cast<char>(data_type::SimpleString)) {}
 
-        [[nodiscard]] std::expected<size_t, std::error_code> parse(std::string_view value,
+        [[nodiscard]] LS_CONSTEXPR std::expected<size_t, std::error_code> parse(std::string_view value,
                                                                    std::vector<data>& data_) override;
 
     private:
@@ -230,11 +224,11 @@ namespace LambdaSnail::resp::v2
     class bulk_string_parser final : public stateful_parser
     {
     public:
-        explicit bulk_string_parser() :
+        LS_CONSTEXPR explicit bulk_string_parser() :
             stateful_parser(static_cast<char>(data_type::BulkString)),
             m_size_parser(static_cast<char>(data_type::BulkString)) {}
 
-        [[nodiscard]] std::expected<size_t, std::error_code> parse(std::string_view value,
+        [[nodiscard]] LS_CONSTEXPR std::expected<size_t, std::error_code> parse(std::string_view value,
                                                                    std::vector<data>& data_) override;
 
     private:
@@ -262,12 +256,12 @@ namespace LambdaSnail::resp::v2
     export class parser
     {
     public:
-        [[nodiscard]] profile_constexpr std::expected<size_t, std::error_code> add_buffer(std::string_view buffer, std::vector<data>& data_);
+        [[nodiscard]] LS_CONSTEXPR std::expected<size_t, std::error_code> add_buffer(std::string_view buffer, std::vector<data>& data_);
 
-        void reset();
-        [[nodiscard]] inline bool is_done() const { return m_is_done; };
+        LS_CONSTEXPR void reset();
+        [[nodiscard]] LS_CONSTEXPR inline bool is_done() const { return m_is_done; };
 
-        void set_expected_num_elements(size_t num) { m_num_elements = num; };
+        LS_CONSTEXPR void set_expected_num_elements(size_t num) { m_num_elements = num; };
 
     private:
         size_t m_num_elements { 1 };
@@ -278,7 +272,7 @@ namespace LambdaSnail::resp::v2
 
         std::shared_ptr<stateful_parser> m_current_parser{};
 
-        std::error_code add_parser(std::string_view::const_iterator start);
+        LS_CONSTEXPR std::error_code add_parser(std::string_view::const_iterator start);
     };
 
     /**
@@ -291,9 +285,9 @@ namespace LambdaSnail::resp::v2
     class array_parser final : public int_parser
     {
     public:
-        explicit array_parser(parser& parser) : int_parser(static_cast<char>(data_type::Array)), m_parser(parser) {}
+        LS_CONSTEXPR explicit array_parser(parser& parser) : int_parser(static_cast<char>(data_type::Array)), m_parser(parser) {}
 
-        [[nodiscard]] std::expected<size_t, std::error_code> parse(std::string_view value,
+        [[nodiscard]] LS_CONSTEXPR std::expected<size_t, std::error_code> parse(std::string_view value,
                                                                    std::vector<data>& data_) override;
 
     private:
@@ -302,7 +296,7 @@ namespace LambdaSnail::resp::v2
 
 } // namespace LambdaSnail::resp::v2
 
-profile_constexpr std::expected<size_t, std::error_code> LambdaSnail::resp::v2::parser::add_buffer(std::string_view buffer, std::vector<data>& data_)
+LS_CONSTEXPR std::expected<size_t, std::error_code> LambdaSnail::resp::v2::parser::add_buffer(std::string_view buffer, std::vector<data>& data_)
 {
     if (buffer.empty()) [[unlikely]]
     {
@@ -342,7 +336,7 @@ profile_constexpr std::expected<size_t, std::error_code> LambdaSnail::resp::v2::
     return it - buffer.begin();
 }
 
-std::error_code LambdaSnail::resp::v2::parser::add_parser(std::string_view::const_iterator start)
+LS_CONSTEXPR std::error_code LambdaSnail::resp::v2::parser::add_parser(std::string_view::const_iterator start)
 {
     switch (static_cast<data_type>(*start))
     {
@@ -374,7 +368,7 @@ std::error_code LambdaSnail::resp::v2::parser::add_parser(std::string_view::cons
     return parse_errc::Success;
 }
 
-std::expected<size_t, std::error_code> LambdaSnail::resp::v2::int_parser::parse(std::string_view value,
+LS_CONSTEXPR std::expected<size_t, std::error_code> LambdaSnail::resp::v2::int_parser::parse(std::string_view value,
                                                                                 std::vector<data>& data_)
 {
     ZoneScoped;
@@ -436,7 +430,7 @@ fully_parsed:
     return it - value.begin();
 }
 
-std::expected<size_t, std::error_code> LambdaSnail::resp::v2::double_parser::parse(std::string_view value,
+LS_CONSTEXPR std::expected<size_t, std::error_code> LambdaSnail::resp::v2::double_parser::parse(std::string_view value,
                                                                                    std::vector<data>& data_)
 {
     ZoneScoped;
@@ -537,7 +531,7 @@ exit:
     return it - value.begin();
 }
 
-std::expected<size_t, std::error_code> LambdaSnail::resp::v2::boolean_parser::parse(std::string_view value,
+LS_CONSTEXPR std::expected<size_t, std::error_code> LambdaSnail::resp::v2::boolean_parser::parse(std::string_view value,
                                                                                     std::vector<data>& data_)
 {
     ZoneScoped;
@@ -591,7 +585,7 @@ std::expected<size_t, std::error_code> LambdaSnail::resp::v2::boolean_parser::pa
     return start - value.begin();
 }
 
-std::expected<size_t, std::error_code> LambdaSnail::resp::v2::null_parser::parse(std::string_view value,
+LS_CONSTEXPR std::expected<size_t, std::error_code> LambdaSnail::resp::v2::null_parser::parse(std::string_view value,
                                                                                  std::vector<data>& data_)
 {
     ZoneScoped;
@@ -634,7 +628,7 @@ std::expected<size_t, std::error_code> LambdaSnail::resp::v2::null_parser::parse
     return start - value.begin();
 }
 
-std::expected<size_t, std::error_code> LambdaSnail::resp::v2::simple_string_parser::parse(std::string_view value,
+LS_CONSTEXPR std::expected<size_t, std::error_code> LambdaSnail::resp::v2::simple_string_parser::parse(std::string_view value,
                                                                                           std::vector<data>& data_)
 {
     ZoneScoped;
@@ -677,7 +671,7 @@ std::expected<size_t, std::error_code> LambdaSnail::resp::v2::simple_string_pars
     return it - value.begin();
 }
 
-std::expected<size_t, std::error_code> LambdaSnail::resp::v2::bulk_string_parser::parse(std::string_view value,
+LS_CONSTEXPR std::expected<size_t, std::error_code> LambdaSnail::resp::v2::bulk_string_parser::parse(std::string_view value,
                                                                                         std::vector<data>& data_)
 {
     ZoneScoped;
@@ -758,14 +752,14 @@ std::expected<size_t, std::error_code> LambdaSnail::resp::v2::bulk_string_parser
     return it - value.begin();
 }
 
-void LambdaSnail::resp::v2::parser::reset()
+LS_CONSTEXPR void LambdaSnail::resp::v2::parser::reset()
 {
     m_num_elements = 1;
     m_is_done = false;
     m_current_parser.reset();
 }
 
-std::expected<size_t, std::error_code> LambdaSnail::resp::v2::array_parser::parse(std::string_view value,
+LS_CONSTEXPR std::expected<size_t, std::error_code> LambdaSnail::resp::v2::array_parser::parse(std::string_view value,
                                                                                   std::vector<data>& data_)
 {
     ZoneScoped;
